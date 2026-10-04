@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>my snitch.</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="my snitch.">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#ffffff">
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      font-family: -apple-system, system-ui, sans-serif;
+      font-size: 17px;
+      padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+    }
+    h1 { margin-top: 48px; }
+    p { line-height: 1.5; }
+    .box {
+      border: 1px solid #8884;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 16px 0;
+    }
+    button {
+      font-size: 17px;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 10px;
+      border: 1px solid #8886;
+      background: transparent;
+      color: inherit;
+    }
+    #update-bar {
+      display: none;
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+      background: #222;
+      color: #fff;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>my snitch.</h1>
+  <p>Hello. This is the Phase 0 test page.</p>
+
+  <div class="box">
+    <strong>Opened as:</strong> <span id="mode">checking...</span>
+  </div>
+
+  <div class="box">
+    <strong>Page version:</strong> <span id="ver">hello-v1</span>
+  </div>
+
+  <div class="box">
+    <strong>Counter saved on this phone:</strong> <span id="count">0</span><br><br>
+    <button id="bump">Add 1</button>
+  </div>
+
+  <div id="update-bar">Update ready. Tap to reload.</div>
+
+  <script>
+    // Shows whether the page runs from the home screen (standalone) or in Safari.
+    var standalone = window.navigator.standalone === true ||
+      window.matchMedia('(display-mode: standalone)').matches;
+    document.getElementById('mode').textContent =
+      standalone ? 'home screen app (full screen)' : 'Safari tab';
+
+    // A tiny counter stored with localStorage, to show data is kept on the phone.
+    var countEl = document.getElementById('count');
+    var n = parseInt(localStorage.getItem('count') || '0', 10);
+    countEl.textContent = n;
+    document.getElementById('bump').addEventListener('click', function () {
+      n += 1;
+      localStorage.setItem('count', String(n));
+      countEl.textContent = n;
+    });
+
+    // Service worker registration, plus the "update ready" bar.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        function showBar() {
+          var bar = document.getElementById('update-bar');
+          bar.style.display = 'block';
+          bar.addEventListener('click', function () {
+            if (reg.waiting) reg.waiting.postMessage('skipWaiting');
+          });
+        }
+        if (reg.waiting && navigator.serviceWorker.controller) showBar();
+        reg.addEventListener('updatefound', function () {
+          var w = reg.installing;
+          w.addEventListener('statechange', function () {
+            if (w.state === 'installed' && navigator.serviceWorker.controller) showBar();
+          });
+        });
+      });
+      var reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (reloading) return;
+        reloading = true;
+        window.location.reload();
+      });
+    }
+  </script>
+</body>
+</html>
