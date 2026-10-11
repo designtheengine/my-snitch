@@ -1,6 +1,6 @@
 // Service worker for my snitch. (Phase 0 hello-world).
 // Bump CACHE_VERSION on every release so phones fetch the new files.
-var CACHE_VERSION = 'mysnitch-v3';
+var CACHE_VERSION = 'mysnitch-v4';
 var FILES = [
   './',
   './index.html',
