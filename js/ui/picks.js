@@ -123,10 +123,15 @@ export function makeLabelField(shared, onEnter) {
     'aria-label': 'Label'
   });
   const counter = el('span', { class: 'muted', text: '0/' + MAX_LABEL });
+  const foot = el('div', { class: 'field-foot', hidden: true }, [counter]);
+  // The suggestions float over the form instead of pushing it down (decided 11 Oct 2026).
   const sugBox = el('div', { class: 'suggest', hidden: true });
 
+  // The counter only shows when the label is getting near the 60 character cap.
   function setCounter() {
-    counter.textContent = Array.from(input.value).length + '/' + MAX_LABEL;
+    const n = Array.from(input.value).length;
+    counter.textContent = n + '/' + MAX_LABEL;
+    foot.hidden = n < 40;
   }
 
   function renderSuggestions() {
@@ -140,10 +145,13 @@ export function makeLabelField(shared, onEnter) {
           type: 'button',
           class: 'suggest-item',
           text: r.display,
+          // Keeps the cursor in the box, so the tap is not lost to the box losing focus first.
+          onpointerdown: (e) => e.preventDefault(),
           onclick: () => {
             input.value = r.display;
             setCounter();
-            renderSuggestions();
+            clear(sugBox);
+            sugBox.hidden = true;
           }
         })
       );
@@ -157,12 +165,17 @@ export function makeLabelField(shared, onEnter) {
     renderSuggestions();
   });
 
+  input.addEventListener('blur', () => {
+    sugBox.hidden = true;
+  });
+  input.addEventListener('focus', () => renderSuggestions());
+
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && onEnter) onEnter();
   });
 
   return {
-    node: el('div', {}, [input, el('div', { class: 'field-foot' }, [el('span'), counter]), sugBox]),
+    node: el('div', { class: 'label-field' }, [input, foot, sugBox]),
     getValue: () => normalizeLabel(input.value),
     setValue(text) {
       input.value = text;

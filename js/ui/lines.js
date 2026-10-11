@@ -24,21 +24,19 @@ export function makeLines(ctx, shared, opts) {
     const line = {};
     line.heading = el('div', { class: 'line-title' });
     line.removeBtn = el('button', { type: 'button', class: 'btn btn-small', onclick: () => removeAt(lines.indexOf(line)) }, 'Remove');
-    line.headRow = el('div', { class: 'line-head', hidden: true }, [line.heading, line.removeBtn]);
+    line.shareText = el('span', { class: 'share-text' });
+    line.headRow = el('div', { class: 'line-head', hidden: true }, [line.heading, line.shareText, line.removeBtn]);
     line.picker = makeCategoryPicker(ctx, shared, () => opts.onChange());
     line.label = makeLabelField(shared, null);
     line.slider = el('input', { type: 'range', min: '1', max: '100', step: '1', value: '100', 'aria-label': 'Share of the block' });
-    line.shareText = el('span', { class: 'share-text' });
-    line.sliderRow = el('div', { class: 'slider-row', hidden: true }, [line.slider, line.shareText]);
+    line.sliderRow = el('div', { class: 'slider-row', hidden: true }, [line.slider]);
     line.slider.addEventListener('input', () => {
       shares = moveSlider(shares, lines.indexOf(line), Number(line.slider.value));
       opts.onChange();
     });
     line.node = el('div', { class: 'line' }, [
       line.headRow,
-      el('div', { class: 'section-label', text: 'Category' }),
       line.picker.node,
-      el('div', { class: 'section-label', text: 'Label' }),
       line.label.node,
       line.sliderRow
     ]);

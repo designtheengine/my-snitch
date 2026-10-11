@@ -271,14 +271,10 @@ h1, h2, p { margin: 0; }
   margin-top: var(--space-2);
 }
 
-.picker .select {
-  margin-top: var(--space-1);
-}
-
 .picker-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-2);
+  grid-template-columns: 2.2fr 1fr 1fr 1fr;
+  gap: var(--space-1);
   margin-top: var(--space-2);
 }
 
@@ -333,8 +329,9 @@ h1, h2, p { margin: 0; }
 
 .share-text {
   flex: none;
-  min-width: 96px;
+  flex: 1;
   text-align: right;
+  font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
 }
 
@@ -463,3 +460,54 @@ h1, h2, p { margin: 0; }
   text-align: center;
   font-weight: var(--weight-medium);
 }
+
+/* ---------------------------------------------------------------- entry forms: compact (decided 11 Oct 2026)
+   Home is easy to read. The entry forms were too big and too long once a block was split, so on
+   these screens the type, chips, buttons and gaps are smaller. Inputs stay at 16px, because a
+   smaller text field makes iOS zoom in on tap. */
+
+#entry {
+  font-size: 14px;
+  --dot-size: 9px;
+}
+
+#entry .head { margin: 0 0 var(--space-1); }
+#entry .title { font-size: 18px; }
+#entry .section-label { margin: var(--space-3) 0 var(--space-1); font-size: 12px; }
+#entry .spacer { height: var(--space-2); }
+#entry p.muted { margin-bottom: var(--space-1); }
+
+#entry .chips { gap: 6px; padding: 2px 2px 4px; }
+#entry .chip-row { gap: 6px; }
+#entry .chip { min-height: 34px; padding: 0 10px; gap: 6px; font-size: 14px; }
+#entry .chip .name { max-width: 150px; }
+
+#entry .btn { min-height: 40px; padding: 0 var(--space-3); font-size: 14px; }
+#entry .btn-small { min-height: 30px; padding: 0 10px; }
+#entry .input { min-height: 40px; font-size: 16px; }
+#entry .select { min-height: 38px; font-size: 16px; padding: 0 6px; }
+#entry .newbox { margin: var(--space-1) 0 var(--space-2); }
+
+#entry .summary { margin: var(--space-2) 0 0; padding: var(--space-2) var(--space-3); font-size: 14px; }
+#entry .confirm { margin-top: var(--space-2); padding: var(--space-3); }
+#entry .confirm p { margin-top: var(--space-1); }
+
+#entry .lines.split .line { padding: var(--space-2) var(--space-3); margin-top: var(--space-2); }
+#entry .line-head { gap: var(--space-2); }
+#entry .slider-row { margin-top: var(--space-1); }
+#entry .slider-row input[type="range"] { min-height: 32px; }
+#entry .share-text { font-size: 15px; }
+
+/* Label suggestions float over the form, so typing never pushes the sliders down. */
+.label-field { position: relative; margin-top: var(--space-1); }
+.label-field .suggest {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 42px;
+  z-index: 6;
+  margin-top: 0;
+  max-height: 140px;
+  overflow-y: auto;
+}
+#entry .suggest-item { min-height: 36px; font-size: 14px; }

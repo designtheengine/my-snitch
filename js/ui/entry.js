@@ -144,9 +144,7 @@ export async function openEntry(ctx, arg) {
     el('div', { class: 'head' }, [el('h2', { class: 'title', text: isChange ? 'Change' : running ? 'Switch to' : 'Start' })]),
     // append() prints a null as the word "null", so an empty subtitle is left out of the list.
     ...(subtitle ? [subtitle] : []),
-    el('div', { class: 'section-label', text: 'Category' }),
     picker.node,
-    el('div', { class: 'section-label', text: 'Label' }),
     label.node,
     el('div', { class: 'spacer' }),
     el('div', { class: 'btn-row' }, [

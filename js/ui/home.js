@@ -4,7 +4,7 @@
 // Phase 4 added the "missed something" button and the gap banner. The sleep control arrives in Phase 5.
 
 import { el, clear, catStyle } from './dom.js';
-import { elapsedSeconds } from '../model.js';
+import { elapsedSeconds, displayMinutes } from '../model.js';
 import { formatDuration, formatClock12, localDate, latestGap } from '../time.js';
 import { truncateForList } from '../labels.js';
 
@@ -114,10 +114,12 @@ function entryRow(ctx, block, today) {
   const tz = block.tz_offset_min;
   const split = block.lines.length > 1;
   // A split block still shows as one row. Its title joins the labels, and its second line
-  // lists every activity with its share, so nothing is hidden. The Sheet gets one row per line.
+  // lists every activity with its minutes, so nothing is hidden. The Sheet gets one row per line.
   const labels = block.lines.map((l) => l.label).filter((t) => t !== '');
   const title = split ? truncateForList(labels.join(' / '), 40) : truncateForList(first.label, 40);
-  const names = split ? block.lines.map((l) => l.category + ' ' + l.share_pct + '%').join(' / ') : first.category;
+  // Minutes add up to the block's minutes (the same split math as the entry form).
+  const mins = split ? displayMinutes(block.end_epoch - block.start_epoch, block.lines.map((l) => l.share_pct)) : null;
+  const names = split ? block.lines.map((l, i) => l.category + ' ' + mins[i] + ' min').join(' / ') : first.category;
   const range = formatClock12(block.start_epoch, tz) + ' to ' + formatClock12(block.end_epoch, tz);
   const date = localDate(block.start_epoch, tz) === today ? '' : shortDate(block.start_epoch, tz) + ', ';
   const sub = names + ' \u00b7 ' + date + range + ' \u00b7 ' + formatDuration(block.end_epoch - block.start_epoch);

@@ -68,11 +68,7 @@ export function makeTimePicker(ctx, title, onChange) {
   }
 
   const picker = {
-    node: el('div', { class: 'picker' }, [
-      el('div', { class: 'muted', text: title }),
-      daySel,
-      el('div', { class: 'picker-row' }, [hourSel, minSel, ampmSel])
-    ]),
+    node: el('div', { class: 'picker' }, [el('div', { class: 'picker-row' }, [daySel, hourSel, minSel, ampmSel])]),
     // The epoch the wheels show. Whole minutes, unless it was set from outside and not touched since.
     getEpoch() {
       if (exact !== null) return exact;
