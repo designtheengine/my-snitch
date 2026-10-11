@@ -209,7 +209,8 @@ export async function openEntry(ctx, mode) {
 
   root.append(
     el('div', { class: 'head' }, [el('h2', { class: 'title', text: running ? 'Switch to' : 'Start' })]),
-    subtitle,
+    // append() prints a null as the word "null", so an empty subtitle is left out of the list.
+    ...(subtitle ? [subtitle] : []),
     el('div', { class: 'section-label', text: 'Category' }),
     chipsRow,
     newBox,

@@ -15,7 +15,7 @@ import { drawHome, stopTicker } from './ui/home.js';
 import { openEntry } from './ui/entry.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v5';
+export const APP_VERSION = 'v6';
 
 const panels = {
   home: document.getElementById('home'),
