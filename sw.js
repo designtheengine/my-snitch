@@ -1,6 +1,6 @@
 // Service worker for my snitch. (Phase 0 hello-world).
 // Bump CACHE_VERSION on every release so phones fetch the new files.
-var CACHE_VERSION = 'mysnitch-v2';
+var CACHE_VERSION = 'mysnitch-v3';
 var FILES = [
   './',
   './index.html',
@@ -13,7 +13,11 @@ var FILES = [
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_VERSION).then(function (cache) {
-      return cache.addAll(FILES);
+      // cache: 'reload' skips the browser's own 10-minute memory, so the new
+      // cache always holds the files that are really on the server.
+      return cache.addAll(FILES.map(function (u) {
+        return new Request(u, { cache: 'reload' });
+      }));
     })
   );
 });
