@@ -16,7 +16,7 @@ import { drawHome, stopTicker } from './ui/home.js';
 import { openEntry } from './ui/entry.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v8';
+export const APP_VERSION = 'v9';
 
 const panels = {
   home: document.getElementById('home'),
@@ -137,6 +137,27 @@ async function boot() {
     panels.home.textContent = 'Storage could not open on this phone. Close the app and open it again.';
   }
 }
+
+// Swipe right from the left edge to go back to Home, so nobody has to scroll down to Cancel
+// (decided 11 Oct 2026). Only a swipe that starts within 30px of the edge counts, so the category
+// strips and the share sliders keep working. It discards the form, the same as Cancel.
+// Unproven on the phone: whether iOS leaves this edge swipe to the page in the installed app.
+let swipe = null;
+document.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  swipe = current !== 'home' && e.touches.length === 1 && t.clientX <= 30 ? { x: t.clientX, y: t.clientY } : null;
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (!swipe || e.touches.length > 0) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - swipe.x;
+  const dy = Math.abs(t.clientY - swipe.y);
+  swipe = null;
+  if (dx > 70 && dy < 60 && current !== 'home') show('home');
+}, { passive: true });
+document.addEventListener('touchcancel', () => {
+  swipe = null;
+}, { passive: true });
 
 // Coming back to the app redraws Home, so the timer shows the right elapsed time at once.
 document.addEventListener('visibilitychange', () => {

@@ -112,14 +112,19 @@ function syncBar(ctx) {
 function entryRow(ctx, block, today) {
   const first = block.lines[0];
   const tz = block.tz_offset_min;
-  const names = block.lines.map((l) => l.category).join(' / ');
+  const split = block.lines.length > 1;
+  // A split block still shows as one row. Its title joins the labels, and its second line
+  // lists every activity with its share, so nothing is hidden. The Sheet gets one row per line.
+  const labels = block.lines.map((l) => l.label).filter((t) => t !== '');
+  const title = split ? truncateForList(labels.join(' / '), 40) : truncateForList(first.label, 40);
+  const names = split ? block.lines.map((l) => l.category + ' ' + l.share_pct + '%').join(' / ') : first.category;
   const range = formatClock12(block.start_epoch, tz) + ' to ' + formatClock12(block.end_epoch, tz);
   const date = localDate(block.start_epoch, tz) === today ? '' : shortDate(block.start_epoch, tz) + ', ';
-  const sub = names + ' · ' + date + range + ' · ' + formatDuration(block.end_epoch - block.start_epoch);
+  const sub = names + ' \u00b7 ' + date + range + ' \u00b7 ' + formatDuration(block.end_epoch - block.start_epoch);
   return el('li', { class: 'row' }, [
     el('span', { class: 'dot', style: catStyle(slotFor(ctx, first.category)) }),
     el('div', { class: 'row-main' }, [
-      el('div', { class: 'row-title', text: truncateForList(first.label, 40) }),
+      el('div', { class: 'row-title', text: title }),
       el('div', { class: 'muted', text: sub })
     ]),
     block.synced_version >= 1 ? el('span', { class: 'tag', text: 'edit' }) : null
