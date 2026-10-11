@@ -269,10 +269,24 @@ export function stopBlock(block, nowEpoch) {
   return { action: 'update', block: next };
 }
 
+// Ends a running block at endEpoch with the lines the person confirmed on the End screen,
+// which may be several activities with shares (decided 11 Oct 2026). Like stopBlock, a block
+// that ran for under a second is removed. Returns {action: 'remove', block_id} or {action: 'update', block}.
+export function finishBlock(block, endEpoch, lines) {
+  if (block.running !== 1) throw new Error('this block is not running');
+  if (endEpoch <= block.start_epoch) return { action: 'remove', block_id: block.block_id };
+  validateLines(lines);
+  const next = Object.assign({}, block, { end_epoch: endEpoch, running: 0, dirty: 1 });
+  next.lines = copyLines(lines);
+  return { action: 'update', block: next };
+}
+
 // Starts a new running block at "now" and closes the one that was running at the same moment.
 // running may be null. newArgs: block_id, tz_offset_min, day, lines.
-export function switchBlock(running, newArgs, nowEpoch) {
-  const previous = running ? stopBlock(running, nowEpoch) : null;
+// endLines (optional) are the confirmed lines of the block being closed, from the End screen.
+export function switchBlock(running, newArgs, nowEpoch, endLines) {
+  let previous = null;
+  if (running) previous = endLines ? finishBlock(running, nowEpoch, endLines) : stopBlock(running, nowEpoch);
   const next = createBlock(
     Object.assign({}, newArgs, { start_epoch: nowEpoch, end_epoch: null, entry_mode: 'timer', now: nowEpoch })
   );

@@ -1,10 +1,10 @@
 // home.js: the Home view (PRD section 5.1). It only draws and reacts to taps.
 // Phase 3 built the status card, the sync bar and the unsynced list.
+// Stop and Switch open the End screen (split at the moment a block ends). Change edits the running block.
 // Phase 4 added the "missed something" button and the gap banner. The sleep control arrives in Phase 5.
 
 import { el, clear, catStyle } from './dom.js';
-import { saveBlock, removeBlock, getRunningBlock } from '../db.js';
-import { stopBlock, elapsedSeconds } from '../model.js';
+import { elapsedSeconds } from '../model.js';
 import { formatDuration, formatClock12, localDate, latestGap } from '../time.js';
 import { truncateForList } from '../labels.js';
 
@@ -43,23 +43,6 @@ function shortDate(epoch, offsetMin) {
   return parts[2] + ' ' + MONTHS[parts[1] - 1];
 }
 
-async function onStop(ctx, button) {
-  button.disabled = true;
-  try {
-    const running = await getRunningBlock(ctx.db);
-    if (running) {
-      const result = stopBlock(running, ctx.nowEpoch());
-      if (result.action === 'remove') await removeBlock(ctx.db, result.block_id);
-      else await saveBlock(ctx.db, result.block, { bumpLabels: false });
-    }
-  } catch (err) {
-    ctx.warn('Could not stop the block. Nothing was changed. Try again.');
-    button.disabled = false;
-    return;
-  }
-  await ctx.refresh();
-}
-
 function statusCard(ctx) {
   const running = ctx.state.running;
   if (!running) {
@@ -71,8 +54,6 @@ function statusCard(ctx) {
   }
   const first = running.lines[0];
   const names = running.lines.map((l) => l.category).join(' / ');
-  const stopBtn = el('button', { type: 'button', class: 'btn btn-primary' }, 'Stop');
-  stopBtn.addEventListener('click', () => onStop(ctx, stopBtn));
   return el('div', { class: 'card' }, [
     el('div', { class: 'status-line' }, [
       el('span', { class: 'dot', style: catStyle(slotFor(ctx, first.category)) }),
@@ -80,9 +61,12 @@ function statusCard(ctx) {
     ]),
     el('div', { class: 'status-label muted', text: (first.label ? first.label : '(no label)') + ' · since ' + formatClock12(running.start_epoch, running.tz_offset_min) }),
     el('div', { class: 'timer', id: 'timer', text: formatDuration(elapsedSeconds(running, ctx.nowEpoch())) }),
+    // Stop and Switch open the End screen, where the block can be split. Change fixes the category
+    // or label of the running block and the timer keeps counting.
     el('div', { class: 'btn-row' }, [
-      stopBtn,
-      el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('entry', 'start') }, 'Switch')
+      el('button', { type: 'button', class: 'btn btn-primary', onclick: () => ctx.show('entry', { mode: 'end', next: 'stop' }) }, 'Stop'),
+      el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('entry', { mode: 'end', next: 'switch' }) }, 'Switch'),
+      el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('entry', 'change') }, 'Change')
     ])
   ]);
 }

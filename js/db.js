@@ -204,7 +204,11 @@ export function applySwitch(db, stopResult, nextBlock, opts) {
     if (stopResult && stopResult.action === 'remove') blocks.delete(stopResult.block_id);
     if (stopResult && stopResult.action === 'update') blocks.put(stopResult.block);
     blocks.put(nextBlock);
-    bumpLabelsIn(tx, nextBlock.lines, nowEpoch);
+    // Labels the person typed on the End screen count too. opts.bumpEnded is set only then.
+    const counted = opts && opts.bumpEnded && stopResult && stopResult.action === 'update'
+      ? nextBlock.lines.concat(stopResult.block.lines)
+      : nextBlock.lines;
+    bumpLabelsIn(tx, counted, nowEpoch);
   });
 }
 

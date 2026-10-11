@@ -2,7 +2,7 @@
 // Release rule: change CACHE_VERSION here and APP_VERSION in js/app.js on every release,
 // or phones never see the update. Every file the page loads must be in FILES,
 // or the app will not open offline.
-var CACHE_VERSION = 'mysnitch-v7';
+var CACHE_VERSION = 'mysnitch-v8';
 var FILES = [
   './',
   './index.html',
@@ -22,6 +22,8 @@ var FILES = [
   './js/ui/home.js',
   './js/ui/entry.js',
   './js/ui/picks.js',
+  './js/ui/lines.js',
+  './js/ui/end.js',
   './js/ui/timepick.js',
   './js/ui/late.js'
 ];

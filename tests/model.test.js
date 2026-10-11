@@ -4,7 +4,7 @@ import {
   largestRemainder, fitShares, maxShare, moveSlider, addLine, removeLine,
   displayMinutes, lineMinutes, validateLines, createBlock, editBlock, deleteBlock,
   markSynced, isSyncEligible, outgoingRows, elapsedSeconds, stopBlock, switchBlock,
-  findOverlaps, trimOlder, stretchesAround, planLateSave, lastEndedBlock, SCHEMA_VERSION
+  findOverlaps, trimOlder, stretchesAround, planLateSave, lastEndedBlock, finishBlock, SCHEMA_VERSION
 } from '../js/model.js';
 import { epochFromLocal } from '../js/time.js';
 
@@ -473,6 +473,53 @@ test('PRD example: block B123 shortened four days later becomes version 2 and le
   assert.equal(rowsV2[0].end_epoch, t(3));
   assert.equal(rowsV2[0].version, 2);
   assert.notEqual(rowsV1[0].row_id, rowsV2[0].row_id);
+});
+
+// ------------------------------------------------------------ ending a block with split lines
+
+test('finishBlock: ends in place with the confirmed lines, still version 1, no longer running', () => {
+  const run = make({ block_id: 'r', end_epoch: null, entry_mode: 'timer' });
+  const lines = [
+    { category: 'office work', label: 'deck', share_pct: 70 },
+    { category: 'social', label: '', share_pct: 30 }
+  ];
+  const r = finishBlock(run, t(15, 30), lines);
+  assert.equal(r.action, 'update');
+  assert.equal(r.block.end_epoch, t(15, 30));
+  assert.equal(r.block.running, 0);
+  assert.equal(r.block.version, 1);
+  assert.equal(r.block.dirty, 1);
+  assert.deepEqual(r.block.lines, lines);
+  assert.equal(run.running, 1);
+});
+
+test('finishBlock: shares must add up to 100, a block under a second is removed, a stopped block is an error', () => {
+  const run = make({ block_id: 'r', end_epoch: null, entry_mode: 'timer' });
+  assert.throws(() => finishBlock(run, t(15), [{ category: 'admin', label: '', share_pct: 90 }]));
+  assert.deepEqual(finishBlock(run, run.start_epoch, one()), { action: 'remove', block_id: 'r' });
+  assert.throws(() => finishBlock(make(), t(16), one()));
+});
+
+test('switch with end lines closes the old block with those lines at the same moment the new one starts', () => {
+  const run = make({ block_id: 'r', end_epoch: null, entry_mode: 'timer' });
+  const split = [
+    { category: 'office work', label: '', share_pct: 60 },
+    { category: 'admin', label: '', share_pct: 40 }
+  ];
+  const r = switchBlock(run, { block_id: 'n', tz_offset_min: IST, day: '2026-09-29', lines: one('learning', '') }, t(15), split);
+  assert.equal(r.previous.block.end_epoch, t(15));
+  assert.equal(r.next.start_epoch, t(15));
+  assert.deepEqual(r.previous.block.lines, split);
+});
+
+test('changing the lines of a running block keeps it running, version 1, same start', () => {
+  const run = make({ block_id: 'r', end_epoch: null, entry_mode: 'timer' });
+  const next = editBlock(run, { lines: one('learning', 'sql') });
+  assert.equal(next.running, 1);
+  assert.equal(next.end_epoch, null);
+  assert.equal(next.start_epoch, run.start_epoch);
+  assert.equal(next.version, 1);
+  assert.deepEqual(next.lines, one('learning', 'sql'));
 });
 
 // ------------------------------------------------------------ fill around (log D29, acceptance check 13)

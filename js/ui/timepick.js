@@ -1,7 +1,7 @@
-// timepick.js: the exact time picker for the entry form (PRD section 5.2).
-// A day, then hour, minute and second, then am or pm, all as drop-down wheels.
-// Seconds come from our own wheel, because it is unproven that the phone's built-in
-// time field shows seconds, so the form does not lean on it.
+// timepick.js: the exact time picker for late logging (PRD section 5.2).
+// A day, then hour and minute, then am or pm, as drop-down wheels. No seconds: typing seconds
+// for a block you are logging afterwards is too fiddly (decided 11 Oct 2026). Start and stop
+// timers still keep seconds, and so do times that come from a chip or a gap.
 
 import { el } from './dom.js';
 import { epochFromLocal, localDate, addDays } from '../time.js';
@@ -47,16 +47,20 @@ export function makeTimePicker(ctx, title, onChange) {
     title + ' minute',
     Array.from({ length: 60 }, (_, i) => ({ value: String(i), text: two(i) }))
   );
-  const secSel = makeSelect(
-    title + ' second',
-    Array.from({ length: 60 }, (_, i) => ({ value: String(i), text: two(i) }))
-  );
   const ampmSel = makeSelect(title + ' am or pm', [
     { value: 'am', text: 'am' },
     { value: 'pm', text: 'pm' }
   ]);
 
-  for (const s of [daySel, hourSel, minSel, secSel, ampmSel]) s.addEventListener('change', () => onChange());
+  // An epoch set from outside keeps its seconds until a wheel moves. A gap that starts at
+  // 12:00:23 must not turn into 12:00:00 and overlap the block before it.
+  let exact = null;
+  for (const s of [daySel, hourSel, minSel, ampmSel]) {
+    s.addEventListener('change', () => {
+      exact = null;
+      onChange();
+    });
+  }
 
   function ensureDay(dateStr) {
     for (const o of daySel.options) if (o.value === dateStr) return;
@@ -67,16 +71,18 @@ export function makeTimePicker(ctx, title, onChange) {
     node: el('div', { class: 'picker' }, [
       el('div', { class: 'muted', text: title }),
       daySel,
-      el('div', { class: 'picker-row' }, [hourSel, minSel, secSel, ampmSel])
+      el('div', { class: 'picker-row' }, [hourSel, minSel, ampmSel])
     ]),
-    // The epoch the wheels show, to the second.
+    // The epoch the wheels show. Whole minutes, unless it was set from outside and not touched since.
     getEpoch() {
+      if (exact !== null) return exact;
       const h12 = Number(hourSel.value);
       const h24 = (h12 % 12) + (ampmSel.value === 'pm' ? 12 : 0);
-      return epochFromLocal(daySel.value, h24, Number(minSel.value), Number(secSel.value), tz);
+      return epochFromLocal(daySel.value, h24, Number(minSel.value), 0, tz);
     },
     // Moves the wheels to an epoch. Does not call onChange.
     setEpoch(epoch) {
+      exact = epoch;
       const date = localDate(epoch, tz);
       ensureDay(date);
       daySel.value = date;
@@ -84,7 +90,6 @@ export function makeTimePicker(ctx, title, onChange) {
       const h24 = Math.floor(secsInDay / 3600);
       hourSel.value = String(h24 % 12 === 0 ? 12 : h24 % 12);
       minSel.value = String(Math.floor((secsInDay % 3600) / 60));
-      secSel.value = String(secsInDay % 60);
       ampmSel.value = h24 < 12 ? 'am' : 'pm';
     }
   };
