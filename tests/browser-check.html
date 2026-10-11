@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>my snitch. Phase 2 check</title>
+<style>
+  body { font: 17px/1.4 -apple-system, system-ui, sans-serif; margin: 16px; color: #0C1A33; background: #F4F7FC; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 4px; }
+  #summary { font-size: 20px; font-weight: 500; margin: 12px 0 16px; padding: 12px; border-radius: 6px; border: 0.5px solid #D3DCEB; background: #fff; }
+  .row { padding: 8px 0; border-bottom: 0.5px solid #D3DCEB; font-size: 15px; }
+  .pass { color: #1F4FBF; }
+  .fail { color: #B3261E; font-weight: 500; }
+  .err { font-size: 13px; color: #586A85; display: block; margin-top: 2px; word-break: break-word; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #CBD5E4; background: #0F1622; }
+    #summary { background: #161F2E; border-color: #243044; }
+    .row { border-color: #243044; }
+    .pass { color: #7D9FD6; }
+    .fail { color: #E8A19B; }
+    .err { color: #8392A8; }
+  }
+</style>
+</head>
+<body>
+<h1>my snitch. Phase 2 check</h1>
+<div>Runs the data layer checks in this browser. It uses its own test database and deletes it at the end. Your real app data is never touched.</div>
+<div id="summary">Running...</div>
+<div id="out"></div>
+<script type="module">
+import * as time from '../js/time.js';
+import * as model from '../js/model.js';
+import * as labels from '../js/labels.js';
+import * as db from '../js/db.js';
+
+const IST = 330;
+const t = (h, m = 0, s = 0, d = '2026-09-29') => time.epochFromLocal(d, h, m, s, IST);
+const one = (c, l) => [{ category: c, label: l, share_pct: 100 }];
+const mk = (id, a, b, over) => model.createBlock(Object.assign({
+  block_id: id, start_epoch: a, end_epoch: b, tz_offset_min: IST, day: '2026-09-29',
+  lines: one('office work', 'Credit Deck'), entry_mode: 'manual', now: t(16)
+}, over || {}));
+const eq = (a, b, msg) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error((msg || 'mismatch') + ': got ' + JSON.stringify(a) + ', wanted ' + JSON.stringify(b)); };
+const sum = (a) => a.reduce((x, y) => x + y, 0);
+
+const checks = [];
+const check = (name, fn) => checks.push([name, fn]);
+
+check('90 minutes at 70 and 30 shows 63 and 27', () => {
+  eq(model.displayMinutes(5400, [70, 30]), [63, 27]);
+  eq([model.lineMinutes(5400, 70), model.lineMinutes(5400, 30)], [63, 27]);
+});
+check('a three-way split moved to every value always totals 100', () => {
+  const shares = [34, 33, 33];
+  for (let i = 0; i < 3; i++) for (let v = 1; v <= model.maxShare(3); v++) {
+    const out = model.moveSlider(shares, i, v);
+    if (sum(out) !== 100 || out.some((x) => x < 1) || out[i] !== v) throw new Error('broke at line ' + i + ' value ' + v);
+  }
+});
+check('a new block is version 1; a synced block edited becomes version 2', () => {
+  const b = mk('b1', t(14), t(15, 30));
+  eq([b.version, b.synced_version, b.dirty], [1, 0, 1]);
+  const synced = model.markSynced(b, 1);
+  const edited = model.editBlock(synced, { end_epoch: t(15) });
+  eq([edited.version, edited.dirty], [2, 1]);
+  eq(model.editBlock(edited, { end_epoch: t(14, 45) }).version, 2, 'repeated edits collapse');
+});
+check('row ids are block:version:line, the same on every retry', () => {
+  const b = mk('b1', t(14), t(15, 30), { lines: [{ category: 'a', label: '', share_pct: 60 }, { category: 'b', label: '', share_pct: 40 }] });
+  eq(model.outgoingRows(b).map((r) => r.row_id), ['b1:1:0', 'b1:1:1']);
+  eq(model.outgoingRows(b)[0].start_ts, '2026-09-29T14:00:00+05:30');
+});
+check('a block deleted before sync is removed; a synced one gets a deletion version', () => {
+  eq(model.deleteBlock(mk('b1', t(14), t(15))).action, 'remove');
+  const r = model.deleteBlock(model.markSynced(mk('b1', t(14), t(15)), 1));
+  eq([r.action, r.block.is_deleted, r.block.version], ['update', true, 2]);
+});
+check('timer: elapsed is now minus the saved start', () => {
+  const run = mk('r1', t(14), null, { entry_mode: 'timer' });
+  eq(model.elapsedSeconds(run, t(16, 30)), 9000);
+});
+check('overlap and gaps', () => {
+  eq(model.findOverlaps(mk('n', t(11), t(13)), [mk('o', t(10), t(12))], t(18)).conflicts[0].kind, 'starts-inside');
+  eq(time.findGaps({ blocks: [{ start_epoch: t(8), end_epoch: t(9), is_deleted: false }], from: t(7), to: t(10), thresholdSec: 300 }),
+    [{ start: t(7), end: t(8) }, { start: t(9), end: t(10) }]);
+});
+check('reporting day and auto-close', () => {
+  eq(time.reportingDay(t(9), IST, [{ epoch: t(7), offset_min: IST }]), '2026-09-29');
+  eq(time.autoCloseEpoch({ wakeEpoch: t(7), wakeOffsetMin: IST, bedEpoch: null, nowEpoch: t(9, 0, 0, '2026-09-30') }), t(4, 0, 0, '2026-09-30'));
+});
+check('label suggestions rank by prefix, then use', () => {
+  const recs = [{ key: 'credit memo', display: 'credit memo', count: 1, last_used: 1 }, { key: 'credit cards', display: 'credit cards', count: 5, last_used: 1 }];
+  eq(labels.suggest(recs, 'cred').map((r) => r.display), ['credit cards', 'credit memo']);
+});
+
+const DB = 'mysnitch-phase2-check';
+check('storage: open, seed nine categories, settings default', async () => {
+  await db.deleteDb(DB);
+  const d = await db.openDb(DB);
+  try {
+    await db.seedCategories(d, t(8));
+    await db.seedCategories(d, t(9));
+    eq((await db.getCategories(d)).map((c) => c.color), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    eq(await db.getSetting(d, 'theme'), 'auto');
+  } finally { d.close(); }
+});
+check('storage: save a block, labels bump, dirty index, reopen keeps data', async () => {
+  let d = await db.openDb(DB);
+  await db.saveBlock(d, mk('b1', t(9), t(10)));
+  await db.saveBlock(d, mk('b2', t(10), t(11)), { now: t(17) });
+  eq((await db.getAllLabels(d))[0].count, 2, 'label count');
+  eq((await db.getDirtyBlocks(d)).length, 2, 'dirty count');
+  await db.saveBlock(d, model.markSynced(mk('b1', t(9), t(10)), 1), { bumpLabels: false });
+  eq((await db.getDirtyBlocks(d)).length, 1, 'dirty after sync');
+  d.close();
+  d = await db.openDb(DB);
+  eq((await db.getAllBlocks(d)).length, 2, 'blocks after reopen');
+  d.close();
+});
+check('storage: switch closes one running block and starts the next in one step', async () => {
+  const d = await db.openDb(DB);
+  try {
+    const run = mk('r1', t(14), null, { entry_mode: 'timer' });
+    await db.saveBlock(d, run);
+    eq((await db.getRunningBlock(d)).block_id, 'r1');
+    const sw = model.switchBlock(run, { block_id: 'r2', tz_offset_min: IST, day: '2026-09-29', lines: one('learning', 'sql') }, t(14, 30));
+    await db.applySwitch(d, sw.previous, sw.next, { now: t(14, 30) });
+    eq((await db.getRunningBlock(d)).block_id, 'r2');
+    eq((await db.getBlock(d, 'r1')).end_epoch, t(14, 30));
+  } finally { d.close(); }
+});
+check('storage: a bad record fails cleanly and saves nothing', async () => {
+  const d = await db.openDb(DB);
+  try {
+    const before = await db.getRunningBlock(d);
+    let failed = false;
+    try { await db.applySwitch(d, model.stopBlock(before, t(21)), { no_key: true }); } catch (e) { failed = true; }
+    if (!failed) throw new Error('the bad save was accepted');
+    eq(await db.getRunningBlock(d), before, 'running block changed');
+  } finally { d.close(); }
+});
+check('storage: clean up the test database', async () => { await db.deleteDb(DB); });
+
+const out = document.getElementById('out');
+let failed = 0;
+for (const [name, fn] of checks) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  try {
+    await fn();
+    row.innerHTML = '<span class="pass">PASS</span> ' + name;
+  } catch (e) {
+    failed++;
+    row.innerHTML = '<span class="fail">FAIL</span> ' + name + '<span class="err">' + String(e && e.message ? e.message : e).replace(/</g, '&lt;') + '</span>';
+  }
+  out.appendChild(row);
+}
+const s = document.getElementById('summary');
+s.textContent = failed === 0 ? 'All ' + checks.length + ' checks passed' : failed + ' of ' + checks.length + ' checks failed';
+s.className = failed === 0 ? 'pass' : 'fail';
+</script>
+</body>
+</html>
