@@ -8,14 +8,15 @@ import {
   getCategories,
   getRunningBlock,
   getDirtyBlocks,
+  getBlocksByDay,
   getSetting
 } from './db.js';
-import { reportingDay } from './time.js';
+import { reportingDay, dayGaps } from './time.js';
 import { drawHome, stopTicker } from './ui/home.js';
 import { openEntry } from './ui/entry.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v6';
+export const APP_VERSION = 'v7';
 
 const panels = {
   home: document.getElementById('home'),
@@ -59,20 +60,31 @@ warnEl.addEventListener('click', () => {
 });
 
 async function loadState(db) {
-  const [categories, running, dirty, lastSyncedAt] = await Promise.all([
+  const now = nowEpoch();
+  const [categories, running, dirty, lastSyncedAt, dayBlocks, gapMin] = await Promise.all([
     getCategories(db),
     getRunningBlock(db),
     getDirtyBlocks(db),
-    getSetting(db, 'last_synced_at')
+    getSetting(db, 'last_synced_at'),
+    getBlocksByDay(db, dayFor(now)),
+    getSetting(db, 'gap_threshold_min')
   ]);
   // Blocks still running are never synced, so they are not in the list.
   const unsynced = dirty
     .filter((b) => b.running !== 1 && b.end_epoch !== null && !b.is_deleted)
     .sort((a, b) => b.start_epoch - a.start_epoch);
+  // The gap banner reads today's blocks plus the running one, which may have started on an earlier day.
+  const gapBlocks = running && !dayBlocks.some((b) => b.block_id === running.block_id) ? dayBlocks.concat([running]) : dayBlocks;
+  const gaps = dayGaps({ blocks: gapBlocks, nowEpoch: now, thresholdSec: gapMin * 60 }).map((g) => ({
+    start: g.start,
+    end: g.end,
+    toNow: g.end === now
+  }));
   return {
     categories: categories,
     running: running || null,
     unsynced: unsynced,
+    gaps: gaps,
     lastSyncedAt: lastSyncedAt || null
   };
 }

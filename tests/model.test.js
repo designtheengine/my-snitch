@@ -4,7 +4,7 @@ import {
   largestRemainder, fitShares, maxShare, moveSlider, addLine, removeLine,
   displayMinutes, lineMinutes, validateLines, createBlock, editBlock, deleteBlock,
   markSynced, isSyncEligible, outgoingRows, elapsedSeconds, stopBlock, switchBlock,
-  findOverlaps, trimOlder, SCHEMA_VERSION
+  findOverlaps, trimOlder, stretchesAround, planLateSave, lastEndedBlock, SCHEMA_VERSION
 } from '../js/model.js';
 import { epochFromLocal } from '../js/time.js';
 
@@ -420,11 +420,11 @@ test('overlap: new block fully inside an older one is refused, including an iden
   assert.equal(findOverlaps(blockAt('new', t(10), t(11)), [older], NOW).blocked, true);
 });
 
-test('overlap: a new block that swallows an older one whole is refused', () => {
+test('overlap: a new block that swallows an older one whole is reported as covers, and does not block', () => {
   const older = blockAt('old', t(10, 30), t(11));
   const r = findOverlaps(blockAt('new', t(10), t(12)), [older], NOW);
   assert.equal(r.conflicts[0].kind, 'covers');
-  assert.equal(r.blocked, true);
+  assert.equal(r.blocked, false);
 });
 
 test('overlap: one new block can touch two older blocks, one at each end', () => {
@@ -473,4 +473,126 @@ test('PRD example: block B123 shortened four days later becomes version 2 and le
   assert.equal(rowsV2[0].end_epoch, t(3));
   assert.equal(rowsV2[0].version, 2);
   assert.notEqual(rowsV1[0].row_id, rowsV2[0].row_id);
+});
+
+// ------------------------------------------------------------ fill around (log D29, acceptance check 13)
+
+const spanMin = (list) => sum(list.map((b) => (b.end_epoch - b.start_epoch) / 60));
+let idn = 0;
+const plan = (candidate, blocks, over = {}) =>
+  planLateSave(candidate, blocks, NOW, Object.assign({ makeId: () => 'x' + ++idn, dayFor: () => '2026-09-29' }, over));
+
+test('stretchesAround: the PRD example, 10:00 to 12:00 over 10:30 to 11:00, gives two stretches', () => {
+  const older = blockAt('old', t(10, 30), t(11));
+  assert.deepEqual(stretchesAround(t(10), t(12), [older], NOW), [
+    { start_epoch: t(10), end_epoch: t(10, 30) },
+    { start_epoch: t(11), end_epoch: t(12) }
+  ]);
+});
+
+test('stretchesAround: no zero-length stretch when a swallowed block starts or ends at the same second', () => {
+  const atStart = blockAt('a', t(10), t(10, 30));
+  assert.deepEqual(stretchesAround(t(10), t(12), [atStart], NOW), [{ start_epoch: t(10, 30), end_epoch: t(12) }]);
+  const atEnd = blockAt('b', t(11, 30), t(12));
+  assert.deepEqual(stretchesAround(t(10), t(12), [atEnd], NOW), [{ start_epoch: t(10), end_epoch: t(11, 30) }]);
+  const both = [blockAt('a', t(10), t(11)), blockAt('b', t(11), t(12))];
+  assert.deepEqual(stretchesAround(t(10), t(12), both, NOW), []);
+});
+
+test('stretchesAround: several swallowed blocks, in any order, leave a stretch between and around them', () => {
+  const list = [blockAt('b', t(11), t(11, 30)), blockAt('a', t(10, 15), t(10, 30))];
+  assert.deepEqual(stretchesAround(t(10), t(12), list, NOW), [
+    { start_epoch: t(10), end_epoch: t(10, 15) },
+    { start_epoch: t(10, 30), end_epoch: t(11) },
+    { start_epoch: t(11, 30), end_epoch: t(12) }
+  ]);
+});
+
+test('stretchesAround: a running swallowed block counts as ending now', () => {
+  const run = blockAt('run', t(17), null, { entry_mode: 'timer' });
+  assert.deepEqual(stretchesAround(t(16), NOW, [run], NOW), [{ start_epoch: t(16), end_epoch: t(17) }]);
+});
+
+test('late entry that covers an older block whole: saved as two blocks around it, older block untouched (check 13)', () => {
+  const older = syncedAt(blockAt('old', t(10, 30), t(11), { lines: one('admin', 'filing') }), 1);
+  const frozen = JSON.stringify(older);
+  const candidate = blockAt('new', t(10), t(12), { entry_mode: 'late', lines: one('doomscrolling', 'feed') });
+  const p = plan(candidate, [older]);
+  assert.equal(p.refused, null);
+  assert.deepEqual(p.trims, []);
+  assert.deepEqual(p.swallowed.map((b) => b.block_id), ['old']);
+  assert.equal(p.newBlocks.length, 2);
+  assert.deepEqual(p.newBlocks.map((b) => [b.start_epoch, b.end_epoch]), [[t(10), t(10, 30)], [t(11), t(12)]]);
+  assert.equal(JSON.stringify(older), frozen);
+  assert.equal(p.newBlocks[0].block_id, 'new');
+  assert.notEqual(p.newBlocks[1].block_id, 'new');
+  for (const b of p.newBlocks) {
+    assert.equal(b.version, 1);
+    assert.equal(b.synced_version, 0);
+    assert.equal(b.entry_mode, 'late');
+    assert.deepEqual(b.lines, [{ category: 'doomscrolling', label: 'feed', share_pct: 100 }]);
+  }
+  assert.equal(spanMin(p.newBlocks) + spanMin([older]), 120);
+});
+
+test('fill around keeps every line and share in every stretch', () => {
+  const older = blockAt('old', t(10, 30), t(11));
+  const lines = [
+    { category: 'office work', label: 'deck', share_pct: 70 },
+    { category: 'social', label: '', share_pct: 30 }
+  ];
+  const p = plan(blockAt('new', t(10), t(12), { entry_mode: 'late', lines: lines }), [older]);
+  assert.equal(p.newBlocks.length, 2);
+  for (const b of p.newBlocks) assert.deepEqual(b.lines, lines);
+});
+
+test('late entry with no overlap is one block that keeps the candidate id', () => {
+  const p = plan(blockAt('new', t(10), t(11), { entry_mode: 'late' }), [blockAt('old', t(12), t(13))]);
+  assert.equal(p.newBlocks.length, 1);
+  assert.equal(p.newBlocks[0].block_id, 'new');
+  assert.deepEqual([p.trims.length, p.swallowed.length], [0, 0]);
+});
+
+test('late entry fully inside an older block is refused and nothing else is planned', () => {
+  const older = blockAt('old', t(10), t(12));
+  const p = plan(blockAt('new', t(10, 30), t(11), { entry_mode: 'late' }), [older]);
+  assert.equal(p.refused.block_id, 'old');
+  assert.deepEqual([p.trims.length, p.swallowed.length, p.newBlocks.length], [0, 0, 0]);
+});
+
+test('a partial overlap and a swallowed block in one entry: trim one, fill around the other', () => {
+  const a = syncedAt(blockAt('a', t(9), t(10, 30)), 1);
+  const s = blockAt('s', t(11), t(11, 30));
+  const p = plan(blockAt('new', t(10), t(12), { entry_mode: 'late' }), [a, s]);
+  assert.equal(p.trims.length, 1);
+  assert.equal(p.trims[0].kind, 'starts-inside');
+  assert.equal(p.trims[0].trimmed.end_epoch, t(10));
+  assert.equal(p.trims[0].trimmed.version, 2);
+  assert.deepEqual(p.swallowed.map((b) => b.block_id), ['s']);
+  assert.deepEqual(p.newBlocks.map((b) => [b.start_epoch, b.end_epoch]), [[t(10), t(11)], [t(11, 30), t(12)]]);
+});
+
+test('each stretch works out its own reporting day', () => {
+  const older = blockAt('old', t(10, 30), t(11));
+  const dayFor = (epoch) => (epoch < t(10, 45) ? 'early' : 'late');
+  const p = plan(blockAt('new', t(10), t(12), { entry_mode: 'late' }), [older], { dayFor: dayFor });
+  assert.deepEqual(p.newBlocks.map((b) => b.day), ['early', 'late']);
+});
+
+test('trimOlder works out the older block day again when its start moves', () => {
+  const older = blockAt('old', t(10), t(12));
+  const moved = trimOlder(older, 'ends-inside', blockAt('new', t(9), t(11)), NOW, () => '2026-09-30');
+  assert.equal(moved.day, '2026-09-30');
+  const cut = trimOlder(older, 'starts-inside', blockAt('new2', t(11), t(13)), NOW, () => '2026-09-30');
+  assert.equal(cut.day, '2026-09-29');
+});
+
+test('lastEndedBlock: the latest end wins, and deleted and running blocks are ignored', () => {
+  const a = blockAt('a', t(9), t(10));
+  const b = blockAt('b', t(10), t(11));
+  const gone = Object.assign(blockAt('g', t(11), t(12)), { is_deleted: true });
+  const run = blockAt('r', t(12), null, { entry_mode: 'timer' });
+  assert.equal(lastEndedBlock([a, b, gone, run]).block_id, 'b');
+  assert.equal(lastEndedBlock([run]), null);
+  assert.equal(lastEndedBlock([]), null);
 });

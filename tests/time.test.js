@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   localDate, toIso, epochFromLocal, addDays, fallbackDay, reportingDay, nightDay,
-  autoCloseEpoch, findGaps, latestGap, minutesAgo, formatDuration, formatClock12
+  autoCloseEpoch, findGaps, latestGap, dayGaps, minutesAgo, formatDuration, formatClock12
 } from '../js/time.js';
 
 const IST = 330;
@@ -151,4 +151,31 @@ test('chips and formatting', () => {
   assert.equal(formatClock12(t(14, 10), IST), '2:10 pm');
   assert.equal(formatClock12(t(0, 5), IST), '12:05 am');
   assert.equal(formatClock12(t(12, 0), IST), '12:00 pm');
+});
+
+test('dayGaps: with no wake the scan starts at the first block of the day, so a fresh day reports nothing', () => {
+  assert.deepEqual(dayGaps({ blocks: [], nowEpoch: t(12), thresholdSec: 300 }), []);
+});
+
+test('dayGaps: holes between blocks and after the last block are reported, the time before the first is not', () => {
+  const blocks = [
+    { start_epoch: t(9), end_epoch: t(10), is_deleted: false },
+    { start_epoch: t(11), end_epoch: t(12), is_deleted: false }
+  ];
+  assert.deepEqual(dayGaps({ blocks, nowEpoch: t(13), thresholdSec: 300 }), [
+    { start: t(10), end: t(11) },
+    { start: t(12), end: t(13) }
+  ]);
+});
+
+test('dayGaps: a wake time starts the scan earlier, and a running block covers up to now', () => {
+  const blocks = [{ start_epoch: t(9), end_epoch: null, is_deleted: false }];
+  assert.deepEqual(dayGaps({ blocks, nowEpoch: t(13), thresholdSec: 300, wakeEpoch: t(7) }), [{ start: t(7), end: t(9) }]);
+  assert.deepEqual(dayGaps({ blocks, nowEpoch: t(13), thresholdSec: 300 }), []);
+});
+
+test('dayGaps: a gap at or under the threshold is not reported', () => {
+  const blocks = [{ start_epoch: t(9), end_epoch: t(10), is_deleted: false }];
+  assert.deepEqual(dayGaps({ blocks, nowEpoch: t(10, 5), thresholdSec: 300 }), []);
+  assert.equal(dayGaps({ blocks, nowEpoch: t(10, 5, 1), thresholdSec: 300 }).length, 1);
 });

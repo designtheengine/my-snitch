@@ -103,6 +103,21 @@ export function latestGap(gaps) {
   return gaps.length ? gaps[gaps.length - 1] : null;
 }
 
+// The gaps Home reports for the current reporting day. blocks are today's blocks plus the
+// running one. The scan starts at the day's wake (wakeEpoch, from Phase 5). Until a wake
+// exists it starts at the first block of the day, and with no blocks at all there is
+// nothing to measure from, so no gaps are reported.
+export function dayGaps(args) {
+  const { blocks, nowEpoch, thresholdSec } = args;
+  const live = blocks.filter((b) => !b.is_deleted);
+  let from = args.wakeEpoch === undefined ? null : args.wakeEpoch;
+  if (from === null) {
+    for (const b of live) if (from === null || b.start_epoch < from) from = b.start_epoch;
+  }
+  if (from === null) return [];
+  return findGaps({ blocks: live, from: from, to: nowEpoch, thresholdSec: thresholdSec });
+}
+
 // Late logging chips: "started 15 / 30 / 60 minutes ago".
 export function minutesAgo(nowEpoch, minutes) {
   return nowEpoch - minutes * 60;

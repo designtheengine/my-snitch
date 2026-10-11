@@ -1,5 +1,5 @@
 /*
-  my snitch. layout and components (Phase 3).
+  my snitch. layout and components (Phase 3, extended in Phase 4).
   Every colour, size and radius comes from css/tokens.css. No raw colour values here.
   Look: flat, hairline borders, no shadows, no gradients.
 */
@@ -181,6 +181,17 @@ h1, h2, p { margin: 0; }
   font-weight: var(--weight-medium);
 }
 
+/* Chips that wrap onto several lines, for the time choices in late mode. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip:disabled {
+  opacity: 0.45;
+}
+
 /* ---------------------------------------------------------------- inputs */
 
 .input {
@@ -240,6 +251,135 @@ h1, h2, p { margin: 0; }
 
 .suggest-item:first-child {
   border-top: 0;
+}
+
+/* ---------------------------------------------------------------- late mode: picker, summary, split */
+
+.select {
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-2);
+  font: inherit;
+  font-size: var(--text-input);
+  color: var(--text);
+  background: var(--card);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-button);
+}
+
+.picker {
+  margin-top: var(--space-2);
+}
+
+.picker .select {
+  margin-top: var(--space-1);
+}
+
+.picker-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.summary {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4);
+  font-weight: var(--weight-medium);
+}
+
+.summary-bad {
+  background: var(--banner-bg);
+  color: var(--banner-text);
+}
+
+/* One line is bare. Two or more lines each sit in a card, with a heading and a share slider. */
+.lines.split .line {
+  background: var(--card);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-card);
+  padding: var(--space-3) var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.line-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.line-title {
+  font-weight: var(--weight-medium);
+}
+
+.btn-small {
+  flex: none;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.slider-row input[type="range"] {
+  flex: 1;
+  min-height: var(--tap-min);
+  accent-color: var(--accent);
+}
+
+.share-text {
+  flex: none;
+  min-width: 96px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.confirm {
+  margin-top: var(--space-3);
+}
+
+.confirm p {
+  margin-top: var(--space-2);
+}
+
+.confirm .btn-row {
+  margin-top: var(--space-3);
+}
+
+.confirm-title {
+  font-weight: var(--weight-medium);
+}
+
+/* ---------------------------------------------------------------- Home: missed button and gap banner */
+
+.missed {
+  margin-bottom: var(--space-3);
+}
+
+.banner {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  text-align: left;
+  font: inherit;
+  background: var(--banner-bg);
+  color: var(--banner-text);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.banner-title {
+  font-weight: var(--weight-medium);
+}
+
+.banner-sub {
+  font-size: var(--text-small);
 }
 
 /* ---------------------------------------------------------------- unsynced list */

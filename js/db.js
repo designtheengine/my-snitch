@@ -170,6 +170,23 @@ export function saveBlock(db, block, opts) {
   });
 }
 
+// Saves several blocks in one transaction, all or nothing. A late entry can trim older blocks
+// and save new ones at once, and a half-finished result would leave the day wrong.
+// items: [{block, bumpLabels}]. bumpLabels defaults to true. Trimmed older blocks pass false.
+// A label shared by several new blocks (the stretches of a fill-around) is counted once.
+export function saveBlocks(db, items, opts) {
+  const nowEpoch = opts && opts.now !== undefined ? opts.now : Math.floor(Date.now() / 1000);
+  return writeTx(db, ['blocks', 'labels'], (tx) => {
+    const blocks = tx.objectStore('blocks');
+    const lines = [];
+    for (const item of items) {
+      blocks.put(item.block);
+      if (item.bumpLabels !== false) lines.push(...item.block.lines);
+    }
+    bumpLabelsIn(tx, lines, nowEpoch);
+  });
+}
+
 // Removes a block record. Only for blocks that were never synced.
 export function removeBlock(db, blockId) {
   return writeTx(db, 'blocks', (tx) => {

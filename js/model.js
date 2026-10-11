@@ -287,9 +287,10 @@ export function switchBlock(running, newArgs, nowEpoch) {
 //   starts-inside: the candidate starts inside an older block. Offer to shorten the older block's end.
 //   ends-inside:   the candidate ends inside an older block. Offer to move the older block's start.
 //   inside:        the candidate sits fully inside an older block. Refuse.
-//   covers:        the candidate swallows an older block whole. Refuse. (The spec lists no rule
-//                  for this case, so refusing is a proposal, see the Phase 2 report.)
-// blocked is true when any conflict is inside or covers.
+//   covers:        the candidate swallows an older block whole. Fill around it (decided 11 Oct 2026,
+//                  log D29): the older block is left alone and the candidate is saved around it.
+//                  See stretchesAround and planLateSave below.
+// blocked is true only when a conflict is inside. A covers conflict never blocks a save.
 export function findOverlaps(candidate, blocks, nowEpoch) {
   const cStart = candidate.start_epoch;
   const cEnd = candidate.end_epoch === null ? nowEpoch : candidate.end_epoch;
@@ -306,18 +307,94 @@ export function findOverlaps(candidate, blocks, nowEpoch) {
     else kind = 'ends-inside';
     conflicts.push({ block: b, kind: kind });
   }
-  const blocked = conflicts.some((c) => c.kind === 'inside' || c.kind === 'covers');
+  const blocked = conflicts.some((c) => c.kind === 'inside');
   return { conflicts: conflicts, blocked: blocked };
 }
 
 // The trimmed version of the older block, after the person accepts the offer.
 // It follows the normal edit rules, so a synced block gets a new version.
-// The caller works out the older block's reporting day again, since a moved start can change it.
-export function trimOlder(older, kind, candidate, nowEpoch) {
+// A moved start can change the older block's reporting day, so pass dayFor (start epoch in,
+// day text out) and the day is worked out again in the same edit.
+export function trimOlder(older, kind, candidate, nowEpoch, dayFor) {
   if (kind === 'starts-inside') return editBlock(older, { end_epoch: candidate.start_epoch });
   if (kind === 'ends-inside') {
     const newStart = candidate.end_epoch === null ? nowEpoch : candidate.end_epoch;
-    return editBlock(older, { start_epoch: newStart });
+    const changes = { start_epoch: newStart };
+    if (typeof dayFor === 'function') changes.day = dayFor(newStart);
+    return editBlock(older, changes);
   }
   throw new Error('this overlap cannot be trimmed: ' + kind);
+}
+
+// ---------------------------------------------------------------- fill around (D29)
+
+// The stretches of the span startEpoch to endEpoch that no swallowed block covers, in time order.
+// A stretch of zero length is never returned. A running swallowed block counts as ending now.
+export function stretchesAround(startEpoch, endEpoch, swallowed, nowEpoch) {
+  const spans = swallowed
+    .map((b) => ({
+      s: Math.max(b.start_epoch, startEpoch),
+      e: Math.min(b.end_epoch === null ? nowEpoch : b.end_epoch, endEpoch)
+    }))
+    .filter((x) => x.e > x.s)
+    .sort((a, b) => a.s - b.s || a.e - b.e);
+  const out = [];
+  let cursor = startEpoch;
+  for (const sp of spans) {
+    if (sp.s > cursor) out.push({ start_epoch: cursor, end_epoch: sp.s });
+    if (sp.e > cursor) cursor = sp.e;
+  }
+  if (endEpoch > cursor) out.push({ start_epoch: cursor, end_epoch: endEpoch });
+  return out;
+}
+
+// Works out everything a late entry will do, without saving anything.
+//   candidate: a block from createBlock (a new late entry, never saved yet)
+//   blocks:    every block on the phone
+//   opts.makeId: gives a new block_id, used for every stretch after the first
+//   opts.dayFor: start epoch in, reporting day text out
+// Returns:
+//   refused:    the older block the entry sits fully inside, or null. Nothing else is filled in then.
+//   trims:      [{older, kind, trimmed}] for each partial overlap. The person is offered each trim.
+//   swallowed:  older blocks the entry covers whole. They are never changed.
+//   newBlocks:  one block per stretch no swallowed block covers, same lines and shares in each.
+//               The first stretch keeps the candidate's block_id.
+export function planLateSave(candidate, blocks, nowEpoch, opts) {
+  const found = findOverlaps(candidate, blocks, nowEpoch);
+  const inside = found.conflicts.find((c) => c.kind === 'inside');
+  if (inside) return { refused: inside.block, trims: [], swallowed: [], newBlocks: [] };
+  const trims = [];
+  const swallowed = [];
+  for (const c of found.conflicts) {
+    if (c.kind === 'covers') swallowed.push(c.block);
+    else trims.push({ older: c.block, kind: c.kind, trimmed: trimOlder(c.block, c.kind, candidate, nowEpoch, opts.dayFor) });
+  }
+  const end = candidate.end_epoch === null ? nowEpoch : candidate.end_epoch;
+  const stretches = stretchesAround(candidate.start_epoch, end, swallowed, nowEpoch);
+  const newBlocks = stretches.map((s, i) =>
+    createBlock({
+      block_id: i === 0 ? candidate.block_id : opts.makeId(),
+      start_epoch: s.start_epoch,
+      end_epoch: s.end_epoch,
+      tz_offset_min: candidate.tz_offset_min,
+      day: opts.dayFor(s.start_epoch),
+      lines: candidate.lines,
+      entry_mode: candidate.entry_mode,
+      now: candidate.logged_at
+    })
+  );
+  return { refused: null, trims: trims, swallowed: swallowed, newBlocks: newBlocks };
+}
+
+// ---------------------------------------------------------------- late logging helpers
+
+// The block that ended last, ignoring deleted blocks and the running one.
+// "Since my last entry" starts at its end, and "same as before" copies its first line.
+export function lastEndedBlock(blocks) {
+  let best = null;
+  for (const b of blocks) {
+    if (b.is_deleted || b.end_epoch === null || b.end_epoch === undefined) continue;
+    if (best === null || b.end_epoch > best.end_epoch) best = b;
+  }
+  return best;
 }
