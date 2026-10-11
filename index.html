@@ -11,124 +11,20 @@
   <meta name="apple-mobile-web-app-title" content="my snitch.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="theme-color" content="#ffffff">
-  <style>
-    :root { color-scheme: light dark; }
-    body {
-      margin: 0;
-      font-family: -apple-system, system-ui, sans-serif;
-      font-size: 17px;
-      padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
-    }
-    h1 { margin-top: 48px; }
-    p { line-height: 1.5; }
-    .box {
-      border: 1px solid #8884;
-      border-radius: 12px;
-      padding: 14px 16px;
-      margin: 16px 0;
-    }
-    button {
-      font-size: 17px;
-      min-height: 44px;
-      padding: 0 18px;
-      border-radius: 10px;
-      border: 1px solid #8886;
-      background: transparent;
-      color: inherit;
-    }
-    input {
-      font-size: 17px;
-      min-height: 44px;
-      width: 100%;
-      box-sizing: border-box;
-      padding: 0 12px;
-      margin-top: 6px;
-      border-radius: 10px;
-      border: 1px solid #8886;
-      background: transparent;
-      color: inherit;
-    }
-    #update-bar {
-      display: none;
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
-      background: #222;
-      color: #fff;
-      text-align: center;
-    }
-  </style>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <h1>my snitch.</h1>
-  <p>Hello. This is the Phase 0 test page.</p>
+  <div id="warn" role="alert" hidden></div>
 
-  <div class="box">
-    <strong>Opened as:</strong> <span id="mode">checking...</span>
-  </div>
-
-  <div class="box">
-    <strong>Page version:</strong> <span id="ver">hello-v4</span>
-  </div>
-
-  <div class="box">
-    <strong>Counter saved on this phone:</strong> <span id="count">0</span><br><br>
-    <button id="bump">Add 1</button>
-  </div>
-
-  <div class="box">
-    <strong>Sync test (Proof C)</strong><br><br>
-    <label for="key">Secret key (typed here, never saved)</label>
-    <input id="key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <br><br>
-    <button id="send-right">Send with my key</button>
-    <button id="send-wrong">Send with a wrong key</button>
-    <p id="sync-result">No test run yet.</p>
-  </div>
+  <section id="home" class="panel"></section>
+  <section id="entry" class="panel" hidden></section>
 
   <div id="update-bar">Update ready. Tap to reload.</div>
 
+  <!-- Service worker and the "update ready" bar. A plain script, so updates still
+       work even if the module script below fails to load. -->
   <script>
-    // Shows whether the page runs from the home screen (standalone) or in Safari.
-    var standalone = window.navigator.standalone === true ||
-      window.matchMedia('(display-mode: standalone)').matches;
-    document.getElementById('mode').textContent =
-      standalone ? 'home screen app (full screen)' : 'Safari tab';
-
-    // A tiny counter stored with localStorage, to show data is kept on the phone.
-    var countEl = document.getElementById('count');
-    var n = parseInt(localStorage.getItem('count') || '0', 10);
-    countEl.textContent = n;
-    document.getElementById('bump').addEventListener('click', function () {
-      n += 1;
-      localStorage.setItem('count', String(n));
-      countEl.textContent = n;
-    });
-
-    // Proof C: send a test message to the Apps Script and show its reply.
-    // The key is read from the box when you tap a button. It is never stored.
-    var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbycNn0l5bvxvsIT1u780SnBJmvwtExPJpni_HDTBPsQqYN6x2_HVZVqsXQ7nh42yKRGjA/exec';
-    function sendTest(key, note) {
-      var out = document.getElementById('sync-result');
-      out.textContent = 'Sending...';
-      fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ key: key, note: note })
-      }).then(function (r) { return r.json(); })
-        .then(function (data) { out.textContent = 'Reply: ' + JSON.stringify(data); })
-        .catch(function (err) { out.textContent = 'Could not reach the Sheet: ' + err; });
-    }
-    document.getElementById('send-right').addEventListener('click', function () {
-      var key = document.getElementById('key').value;
-      if (!key) { document.getElementById('sync-result').textContent = 'Type your secret key first.'; return; }
-      sendTest(key, 'right key from phone');
-    });
-    document.getElementById('send-wrong').addEventListener('click', function () {
-      sendTest('WRONG_KEY_FOR_TEST', 'wrong key from phone');
-    });
-
-    // Service worker registration, plus the "update ready" bar.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').then(function (reg) {
         function showBar() {
@@ -154,5 +50,6 @@
       });
     }
   </script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

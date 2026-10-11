@@ -1,13 +1,26 @@
-// Service worker for my snitch. (Phase 0 hello-world).
-// Bump CACHE_VERSION on every release so phones fetch the new files.
-var CACHE_VERSION = 'mysnitch-v4';
+// Service worker for my snitch.
+// Release rule: change CACHE_VERSION here and APP_VERSION in js/app.js on every release,
+// or phones never see the update. Every file the page loads must be in FILES,
+// or the app will not open offline.
+var CACHE_VERSION = 'mysnitch-v5';
 var FILES = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icons/icon-180.png',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './css/tokens.css',
+  './css/app.css',
+  './js/app.js',
+  './js/db.js',
+  './js/model.js',
+  './js/time.js',
+  './js/labels.js',
+  './js/categories.js',
+  './js/ui/dom.js',
+  './js/ui/home.js',
+  './js/ui/entry.js'
 ];
 
 self.addEventListener('install', function (event) {

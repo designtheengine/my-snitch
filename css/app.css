@@ -1,0 +1,323 @@
+/*
+  my snitch. layout and components (Phase 3).
+  Every colour, size and radius comes from css/tokens.css. No raw colour values here.
+  Look: flat, hairline borders, no shadows, no gradients.
+*/
+
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+[hidden] { display: none !important; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--text-body);
+  font-weight: var(--weight-regular);
+  line-height: 1.4;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.panel {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+h1, h2, p { margin: 0; }
+
+.title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: var(--text-small);
+}
+
+.section-label {
+  color: var(--text-muted);
+  font-size: var(--text-small);
+  margin: var(--space-5) 0 var(--space-2);
+}
+
+.spacer { height: var(--space-3); }
+
+/* ---------------------------------------------------------------- cards */
+
+.card {
+  background: var(--card);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-medium);
+}
+
+.status-label {
+  margin-top: var(--space-1);
+}
+
+.timer {
+  font-size: var(--text-timer);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  margin: var(--space-3) 0 var(--space-4);
+}
+
+.sync-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.btn {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-button);
+  border: var(--hairline) solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--weight-medium);
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.btn-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.btn-row .btn {
+  flex: 1;
+}
+
+.btn-wide {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------- category dot and chips */
+
+.dot {
+  flex: none;
+  width: var(--dot-size);
+  height: var(--dot-size);
+  background: var(--c, var(--text-muted));
+}
+
+.chips {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  -webkit-overflow-scrolling: touch;
+}
+
+.chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-chip);
+  border: var(--hairline) solid var(--cl, var(--border));
+  background: var(--cf, var(--card));
+  color: var(--text);
+  font: inherit;
+}
+
+.chip .name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip[aria-pressed="true"] {
+  font-weight: var(--weight-medium);
+  outline: 1.5px solid var(--c, var(--accent));
+  outline-offset: 1px;
+}
+
+.chip-new {
+  border-style: dashed;
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+/* ---------------------------------------------------------------- inputs */
+
+.input {
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: var(--text-input);
+  color: var(--text);
+  background: var(--card);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-button);
+}
+
+.input:focus {
+  outline: 1.5px solid var(--accent);
+  outline-offset: 0;
+}
+
+.field-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+}
+
+.newbox {
+  margin: var(--space-2) 0 var(--space-3);
+}
+
+.newbox .btn-row {
+  margin-top: var(--space-2);
+}
+
+.msg {
+  margin-top: var(--space-2);
+}
+
+.suggest {
+  margin-top: var(--space-2);
+  background: var(--card);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.suggest-item {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-top: var(--hairline) solid var(--border);
+}
+
+.suggest-item:first-child {
+  border-top: 0;
+}
+
+/* ---------------------------------------------------------------- unsynced list */
+
+.entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--card);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--hairline) solid var(--border);
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag {
+  flex: none;
+  font-size: var(--text-small);
+  color: var(--banner-text);
+  background: var(--banner-bg);
+  border-radius: var(--radius-chip);
+  padding: 0 var(--space-2);
+}
+
+.empty {
+  color: var(--text-muted);
+}
+
+.foot {
+  margin-top: var(--space-5);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- warning and update bars */
+
+#warn {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 10;
+  padding: calc(var(--space-3) + env(safe-area-inset-top)) var(--space-4) var(--space-3);
+  background: var(--banner-bg);
+  color: var(--banner-text);
+  text-align: center;
+  border-bottom: var(--hairline) solid var(--border);
+}
+
+#update-bar {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+  background: var(--accent);
+  color: var(--on-accent);
+  text-align: center;
+  font-weight: var(--weight-medium);
+}
