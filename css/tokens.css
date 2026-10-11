@@ -1,0 +1,109 @@
+/*
+  my snitch. design tokens (Phase 1, locked 11 Oct 2026)
+  Light: "G1 bright blue range". Dark: "Dark 1 dusk".
+  Theme: follows the phone by default. [data-theme="light"] or
+  [data-theme="dark"] on <html> overrides it (set from Settings).
+  Every colour in the app comes from a variable below. No raw hex in app.css.
+*/
+
+:root {
+  /* surfaces and text */
+  --bg: #F4F7FC;
+  --card: #FFFFFF;
+  --text: #0C1A33;
+  --text-muted: #586A85;
+  --border: #D3DCEB;
+
+  /* accent (primary buttons, links, sync) */
+  --accent: #1F4FBF;
+  --on-accent: #FFFFFF;
+
+  /* gap banner */
+  --banner-bg: #DCE8FB;
+  --banner-text: #14305E;
+
+  /* category colour slots 1 to 9.
+     Starting set in order: office work, personal work, admin, learning,
+     social, sleep, eating, freshening up, doomscrolling.
+     fill = chip background (20%), line = chip border (60%). */
+  --cat-1: #0B2A66; --cat-1-fill: #0B2A6633; --cat-1-line: #0B2A6699;
+  --cat-2: #1D4ED8; --cat-2-fill: #1D4ED833; --cat-2-line: #1D4ED899;
+  --cat-3: #3B82F6; --cat-3-fill: #3B82F633; --cat-3-line: #3B82F699;
+  --cat-4: #0EA5E9; --cat-4-fill: #0EA5E933; --cat-4-line: #0EA5E999;
+  --cat-5: #6366F1; --cat-5-fill: #6366F133; --cat-5-line: #6366F199;
+  --cat-6: #312E81; --cat-6-fill: #312E8133; --cat-6-line: #312E8199;
+  --cat-7: #38BDF8; --cat-7-fill: #38BDF833; --cat-7-line: #38BDF899;
+  --cat-8: #93C5FD; --cat-8-fill: #93C5FD33; --cat-8-line: #93C5FD99;
+  --cat-9: #64748B; --cat-9-fill: #64748B33; --cat-9-line: #64748B99;
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  /* shape */
+  --radius-card: 6px;
+  --radius-button: 5px;
+  --radius-chip: 6px;
+  --hairline: 0.5px;
+  --tap-min: 44px;
+  --dot-size: 11px;
+
+  /* type: iPhone system font, inputs at 16px or larger so iOS does not zoom */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --text-small: 13px;
+  --text-body: 15px;
+  --text-title: 20px;
+  --text-timer: 36px;
+  --text-input: 17px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+}
+
+/* Dark: phone is set to dark and the app has not forced light */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1622;
+    --card: #161F2E;
+    --text: #CBD5E4;
+    --text-muted: #8392A8;
+    --border: #243044;
+    --accent: #7D9FD6;
+    --on-accent: #0F1622;
+    --banner-bg: #1A2840;
+    --banner-text: #B5C9E6;
+    --cat-1: #4A66B0; --cat-1-fill: #4A66B026; --cat-1-line: #4A66B066;
+    --cat-2: #658CD6; --cat-2-fill: #658CD626; --cat-2-line: #658CD666;
+    --cat-3: #8FAEE6; --cat-3-fill: #8FAEE626; --cat-3-line: #8FAEE666;
+    --cat-4: #4DB0D6; --cat-4-fill: #4DB0D626; --cat-4-line: #4DB0D666;
+    --cat-5: #8D92E0; --cat-5-fill: #8D92E026; --cat-5-line: #8D92E066;
+    --cat-6: #6A66C2; --cat-6-fill: #6A66C226; --cat-6-line: #6A66C266;
+    --cat-7: #7FC3E3; --cat-7-fill: #7FC3E326; --cat-7-line: #7FC3E366;
+    --cat-8: #BFD1EA; --cat-8-fill: #BFD1EA26; --cat-8-line: #BFD1EA66;
+    --cat-9: #8391A6; --cat-9-fill: #8391A626; --cat-9-line: #8391A666;
+  }
+}
+
+/* Dark: forced from Settings */
+:root[data-theme="dark"] {
+  --bg: #0F1622;
+  --card: #161F2E;
+  --text: #CBD5E4;
+  --text-muted: #8392A8;
+  --border: #243044;
+  --accent: #7D9FD6;
+  --on-accent: #0F1622;
+  --banner-bg: #1A2840;
+  --banner-text: #B5C9E6;
+  --cat-1: #4A66B0; --cat-1-fill: #4A66B026; --cat-1-line: #4A66B066;
+  --cat-2: #658CD6; --cat-2-fill: #658CD626; --cat-2-line: #658CD666;
+  --cat-3: #8FAEE6; --cat-3-fill: #8FAEE626; --cat-3-line: #8FAEE666;
+  --cat-4: #4DB0D6; --cat-4-fill: #4DB0D626; --cat-4-line: #4DB0D666;
+  --cat-5: #8D92E0; --cat-5-fill: #8D92E026; --cat-5-line: #8D92E066;
+  --cat-6: #6A66C2; --cat-6-fill: #6A66C226; --cat-6-line: #6A66C266;
+  --cat-7: #7FC3E3; --cat-7-fill: #7FC3E326; --cat-7-line: #7FC3E366;
+  --cat-8: #BFD1EA; --cat-8-fill: #BFD1EA26; --cat-8-line: #BFD1EA66;
+  --cat-9: #8391A6; --cat-9-fill: #8391A626; --cat-9-line: #8391A666;
+}
