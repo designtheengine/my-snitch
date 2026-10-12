@@ -6,7 +6,7 @@
 // data: {shared, blocks, running, gap}
 //   gap is {start, end, toNow} when the gap banner opened the form, or null.
 
-import { el, clear } from './dom.js';
+import { el, clear, section } from './dom.js';
 import { saveBlocks, getAllBlocks } from '../db.js';
 import { createBlock, planLateSave, lastEndedBlock } from '../model.js';
 import { formatDuration, formatClock12, localDate, minutesAgo } from '../time.js';
@@ -134,7 +134,7 @@ export function openLate(ctx, root, data) {
     onFormChange();
   }
 
-  const summary = el('div', { class: 'card summary' });
+  const summary = el('div', { class: 'summary' });
 
   function updateSummary() {
     const d = describeTimes();
@@ -304,20 +304,12 @@ export function openLate(ctx, root, data) {
   updateSave();
 
   root.append(
-    el('div', { class: 'head' }, [el('h2', { class: 'title', text: 'Missed something' })]),
-    el('div', { class: 'section-label', text: 'Started' }),
-    startRow,
-    startPicker.node,
-    el('div', { class: 'section-label', text: 'Ended' }),
-    endRow,
-    endPicker.node,
-    summary,
-    linesUi.node,
-    el('div', { class: 'spacer' }),
-    linesUi.splitBtn,
+    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: 'Missed something' })]),
+    section(1, 'Started', [startRow, startPicker.node]),
+    section(2, 'Ended', [endRow, endPicker.node, summary]),
+    section(3, 'What you did', [linesUi.node, linesUi.splitBtn]),
     msg,
     confirmBox,
-    el('div', { class: 'spacer' }),
     el('div', { class: 'btn-row' }, [
       el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('home') }, 'Cancel'),
       saveBtn

@@ -9,7 +9,7 @@
 // opts.onChange():    runs after anything the person changes. The caller then calls refresh().
 // opts.onMessage(t):  shows a short message under the form
 
-import { el } from './dom.js';
+import { el, binButton } from './dom.js';
 import { moveSlider, addLine, removeLine, maxShare, displayMinutes } from '../model.js';
 import { makeCategoryPicker, makeLabelField } from './picks.js';
 
@@ -23,7 +23,7 @@ export function makeLines(ctx, shared, opts) {
   function makeLine() {
     const line = {};
     line.heading = el('div', { class: 'line-title' });
-    line.removeBtn = el('button', { type: 'button', class: 'btn btn-small', onclick: () => removeAt(lines.indexOf(line)) }, 'Remove');
+    line.removeBtn = binButton('Remove this activity', () => removeAt(lines.indexOf(line)));
     line.shareText = el('span', { class: 'share-text' });
     line.headRow = el('div', { class: 'line-head', hidden: true }, [line.heading, line.shareText, line.removeBtn]);
     line.picker = makeCategoryPicker(ctx, shared, () => opts.onChange());
@@ -51,7 +51,7 @@ export function makeLines(ctx, shared, opts) {
     const duration = opts.getDuration();
     const mins = duration !== null && duration > 0 ? displayMinutes(duration, shares) : null;
     lines.forEach((l, i) => {
-      l.heading.textContent = 'Line ' + (i + 1);
+      l.heading.textContent = 'Activity ' + (i + 1);
       l.headRow.hidden = !split;
       l.sliderRow.hidden = !split;
       l.slider.max = String(maxShare(lines.length)); // the limit first, so the value is never cut short

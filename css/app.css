@@ -511,3 +511,73 @@ h1, h2, p { margin: 0; }
   overflow-y: auto;
 }
 #entry .suggest-item { min-height: 36px; font-size: 14px; }
+
+/* ---------------------------------------------------------------- entry forms: sections (12 Oct 2026)
+   Compact was too tight to read. Each part of the form is now its own card with a tinted header
+   strip, so you can tell Started from Ended from What you did at a glance. The page title sits
+   above a rule. Action buttons now differ: Save is solid, secondary actions have an accent
+   outline, Cancel is plain text, and Remove is a dustbin icon. */
+
+#entry { font-size: 15px; }
+#entry .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+#entry .title { font-size: 22px; }
+
+.sect {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+}
+.sect-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px var(--space-4);
+  background: var(--banner-bg);
+  color: var(--banner-text);
+  font-weight: var(--weight-medium);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.sect-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 13px;
+}
+.sect-body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.sect-body p.muted { margin: 0; }
+.sect-body .summary { margin: 0; padding: 0; background: none; border: 0; font-weight: var(--weight-medium); }
+.sect-body .chip-row { gap: var(--space-2); }
+
+/* time options: selected one is filled, so it reads as a choice and not an action */
+#entry .chip-row .chip { min-height: 38px; padding: 0 12px; }
+#entry .chip-row .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+#entry .select { min-height: 42px; }
+#entry .chips { padding: 2px 2px 6px; }
+#entry .chip { min-height: 38px; font-size: 15px; }
+#entry .input { min-height: 44px; }
+
+/* activities inside the third card: flat blocks separated by a rule, not cards in a card */
+#entry .lines.split .line { padding: var(--space-3) 0 0; margin-top: var(--space-3); border-top: 1px solid var(--border); background: none; border-left: 0; border-right: 0; border-bottom: 0; border-radius: 0; }
+#entry .lines.split .line:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+#entry .line .chips, #entry .line .label-field, #entry .line .slider-row { margin-top: var(--space-2); }
+#entry .line-title { font-weight: var(--weight-medium); }
+#entry .share-text { margin-left: auto; margin-right: var(--space-2); font-weight: var(--weight-medium); }
+
+/* buttons */
+#entry .btn { min-height: 44px; font-size: 15px; }
+.btn-icon { width: 40px; min-height: 40px !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); background: transparent; }
+#entry .btn-wide { width: 100%; border: 1px dashed var(--accent); color: var(--accent); background: transparent; }
+#entry .btn-row { margin-top: var(--space-2); padding-bottom: var(--space-4); }
+#entry .btn-row .btn { border-width: 1px; }
+#entry .btn-row .btn:not(.btn-primary) { background: transparent; border-color: transparent; color: var(--text-muted); flex: 0 0 30%; }
+#entry .btn-row .btn-primary { min-height: 48px; font-size: 16px; }
+#entry .newbox .btn:not(.btn-primary) { border-color: var(--accent); color: var(--accent); background: transparent; }
