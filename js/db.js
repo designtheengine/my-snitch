@@ -293,9 +293,10 @@ export function putSleep(db, record) {
 
 // Saves one sleep plan (from sleep.js) in a single transaction, all or nothing: the night record,
 // its blocks, a running block that the plan ends, and any blocks or record it removes.
-// Label counts are left alone on purpose, so "trying to sleep" never shows up as a suggestion.
+// Labels you typed in the morning check count for suggestions (plan.bump), but the default
+// "trying to sleep" never does, because the caller leaves it out of plan.bump.
 export function saveNight(db, plan) {
-  return writeTx(db, ['blocks', 'sleep'], (tx) => {
+  return writeTx(db, ['blocks', 'sleep', 'labels'], (tx) => {
     const blocks = tx.objectStore('blocks');
     const stop = plan.stop;
     if (stop && stop.action === 'remove') blocks.delete(stop.block_id);
@@ -305,6 +306,7 @@ export function saveNight(db, plan) {
     const nights = tx.objectStore('sleep');
     if (plan.night) nights.put(plan.night);
     if (plan.deleteNightId) nights.delete(plan.deleteNightId);
+    if (plan.bump && plan.bump.lines.length) bumpLabelsIn(tx, plan.bump.lines, plan.bump.now);
   });
 }
 

@@ -3,9 +3,11 @@
 //
 // One record per night holds three moments: bed, fell asleep, woke up. From that record the
 // app derives up to two ordinary blocks, so fixing a time in the morning check redraws both:
-//   "trying to sleep"  bed to asleep   (the stretch that business question 7 measures)
-//   "sleep"            asleep to wake
+//   the stretch before sleep  bed to asleep (the stretch that business question 7 measures).
+//                             It holds any mix of activity lines, "trying to sleep" by default.
+//   "sleep"                   asleep to wake
 // Both blocks carry entry_mode 'sleep', and both wait for sync until the wake is logged.
+// Nobody taps a phone while falling asleep, so "fell asleep" is normally set in the morning check.
 
 import { createBlock, editBlock, deleteBlock, stopBlock, findOverlaps } from './model.js';
 import { nightDay, autoCloseEpoch } from './time.js';
@@ -14,6 +16,21 @@ export const SLEEP_CATEGORY = 'sleep';
 export const DOOM_CATEGORY = 'doomscrolling';
 export const TRYING_LABEL = 'trying to sleep';
 export const SLEEP_LABEL = 'sleep';
+
+// The default stretch before sleep: one line, trying to sleep.
+export function defaultTryingLines() {
+  return [{ category: SLEEP_CATEGORY, label: TRYING_LABEL, share_pct: 100 }];
+}
+
+// The activity lines of the stretch before sleep. Nights saved by v13 hold a single category
+// (trying_category) instead of a list, so that is read too.
+export function tryingLinesOf(night) {
+  if (Array.isArray(night.trying_lines) && night.trying_lines.length) {
+    return night.trying_lines.map((l) => ({ category: l.category, label: l.label, share_pct: l.share_pct }));
+  }
+  const category = night.trying_category || SLEEP_CATEGORY;
+  return [{ category: category, label: TRYING_LABEL, share_pct: 100 }];
+}
 
 // ---------------------------------------------------------------- the night record
 
@@ -29,7 +46,7 @@ export function newNight(args) {
     wake_offset_min: null,
     auto_closed: !!args.autoClosed,
     reviewed: false,
-    trying_category: SLEEP_CATEGORY,
+    trying_lines: defaultTryingLines(),
     bed_block_id: args.makeId(),
     sleep_block_id: args.makeId()
   };
@@ -75,18 +92,17 @@ export function checkNight(night, nowEpoch) {
 export function desiredBlocks(night) {
   const { bed_epoch: bed, asleep_epoch: asleep, wake_epoch: wake } = night;
   if (night.auto_closed && wake === null) return [];
-  const trying = night.trying_category || SLEEP_CATEGORY;
+  const trying = tryingLinesOf(night);
+  const plain = [{ category: SLEEP_CATEGORY, label: SLEEP_LABEL, share_pct: 100 }];
   if (asleep === null) {
-    // Fell asleep is unknown. Until the wake it is one running "trying to sleep" block.
+    // Fell asleep is unknown. Until the wake it is one running block of the stretch before sleep.
     // After the wake it becomes one plain sleep block from bed to wake.
-    if (wake === null) {
-      return [{ id: night.bed_block_id, start: bed, end: null, category: trying, label: TRYING_LABEL }];
-    }
-    return [{ id: night.bed_block_id, start: bed, end: wake, category: SLEEP_CATEGORY, label: SLEEP_LABEL }];
+    if (wake === null) return [{ id: night.bed_block_id, start: bed, end: null, lines: trying }];
+    return [{ id: night.bed_block_id, start: bed, end: wake, lines: plain }];
   }
   const out = [];
-  if (asleep > bed) out.push({ id: night.bed_block_id, start: bed, end: asleep, category: trying, label: TRYING_LABEL });
-  out.push({ id: night.sleep_block_id, start: asleep, end: wake, category: SLEEP_CATEGORY, label: SLEEP_LABEL });
+  if (asleep > bed) out.push({ id: night.bed_block_id, start: bed, end: asleep, lines: trying });
+  out.push({ id: night.sleep_block_id, start: asleep, end: wake, lines: plain });
   return out;
 }
 
@@ -98,7 +114,7 @@ export function blocksFor(night, existing, opts) {
   const keep = new Set();
   for (const d of desiredBlocks(night)) {
     keep.add(d.id);
-    const lines = [{ category: d.category, label: d.label, share_pct: 100 }];
+    const lines = d.lines;
     const old = existing[d.id];
     if (old && !old.is_deleted) {
       save.push(editBlock(old, { start_epoch: d.start, end_epoch: d.end, day: night.day, lines: lines }));

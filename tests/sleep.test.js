@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   newNight, updateNight, checkNight, desiredBlocks, blocksFor, nightConflict, planBed, planChange,
   planDiscard, planAutoClose, wakesFrom, latestWake, heldBlockIds, openNight, unreviewedNight,
-  TRYING_LABEL, SLEEP_LABEL
+  tryingLinesOf, TRYING_LABEL, SLEEP_LABEL
 } from '../js/sleep.js';
 import { createBlock, markSynced } from '../js/model.js';
 import { reportingDay, epochFromLocal, localDate } from '../js/time.js';
@@ -37,7 +37,7 @@ test('before the asleep tap there is one running trying-to-sleep block', () => {
   const d = desiredBlocks(night());
   assert.equal(d.length, 1);
   assert.equal(d[0].end, null);
-  assert.equal(d[0].label, TRYING_LABEL);
+  assert.equal(d[0].lines[0].label, TRYING_LABEL);
 });
 
 test('with bed, asleep and wake there are two closed blocks that meet at the asleep time', () => {
@@ -45,8 +45,8 @@ test('with bed, asleep and wake there are two closed blocks that meet at the asl
   const d = desiredBlocks(x);
   assert.equal(d.length, 2);
   assert.equal(d[0].end, d[1].start);
-  assert.equal(d[0].label, TRYING_LABEL);
-  assert.equal(d[1].label, SLEEP_LABEL);
+  assert.equal(d[0].lines[0].label, TRYING_LABEL);
+  assert.equal(d[1].lines[0].label, SLEEP_LABEL);
   assert.equal(d[1].end, t(7, 0, 0, '2026-10-13'));
 });
 
@@ -54,24 +54,58 @@ test('asleep unknown after the wake: one sleep block from bed to wake', () => {
   const x = updateNight(night(), { wake_epoch: t(7, 0, 0, '2026-10-13'), wake_offset_min: IST });
   const d = desiredBlocks(x);
   assert.equal(d.length, 1);
-  assert.equal(d[0].label, SLEEP_LABEL);
-  assert.equal(d[0].category, 'sleep');
+  assert.equal(d[0].lines[0].label, SLEEP_LABEL);
+  assert.equal(d[0].lines[0].category, 'sleep');
 });
 
 test('asleep at the same second as bed makes no trying block', () => {
   const x = updateNight(night(), { asleep_epoch: t(23) });
   const d = desiredBlocks(x);
   assert.equal(d.length, 1);
-  assert.equal(d[0].label, SLEEP_LABEL);
+  assert.equal(d[0].lines[0].label, SLEEP_LABEL);
   assert.equal(d[0].end, null);
 });
 
-test('relabelling the bed stretch as doomscrolling changes its category, not its label', () => {
-  const x = updateNight(night(), { asleep_epoch: t(23, 45), trying_category: 'doomscrolling' });
+test('the stretch before sleep can be relabelled as doomscrolling and keeps its label', () => {
+  const x = updateNight(night(), {
+    asleep_epoch: t(23, 45),
+    trying_lines: [{ category: 'doomscrolling', label: TRYING_LABEL, share_pct: 100 }]
+  });
   const d = desiredBlocks(x);
-  assert.equal(d[0].category, 'doomscrolling');
-  assert.equal(d[0].label, TRYING_LABEL);
-  assert.equal(d[1].category, 'sleep');
+  assert.equal(d[0].lines[0].category, 'doomscrolling');
+  assert.equal(d[0].lines[0].label, TRYING_LABEL);
+  assert.equal(d[1].lines[0].category, 'sleep');
+});
+
+test('the stretch before sleep can hold a mix of activities with shares', () => {
+  const mix = [
+    { category: 'social', label: 'talking', share_pct: 50 },
+    { category: 'doomscrolling', label: '', share_pct: 40 },
+    { category: 'sleep', label: TRYING_LABEL, share_pct: 10 }
+  ];
+  const x = updateNight(night(), { asleep_epoch: t(23, 50), trying_lines: mix });
+  const made = blocksFor(x, {}, { now: t(23, 51) }).save;
+  const before = made.find((b) => b.block_id === x.bed_block_id);
+  assert.equal(before.lines.length, 3);
+  assert.equal(before.lines.reduce((a, l) => a + l.share_pct, 0), 100);
+  assert.equal(before.end_epoch, t(23, 50));
+});
+
+test('a night saved by v13 with one category (trying_category) still reads as one line', () => {
+  const old = Object.assign(night(), { trying_category: 'doomscrolling' });
+  delete old.trying_lines;
+  assert.deepEqual(tryingLinesOf(old), [{ category: 'doomscrolling', label: TRYING_LABEL, share_pct: 100 }]);
+});
+
+test('changing the lines of a synced night makes a new version of the before-sleep block only', () => {
+  const x = updateNight(night(), { asleep_epoch: t(23, 30), wake_epoch: t(7, 0, 0, '2026-10-13'), wake_offset_min: IST });
+  const made = blocksFor(x, {}, { now: t(7, 1, 0, '2026-10-13') }).save.map((b) => markSynced(b, 1));
+  const later = updateNight(x, { trying_lines: [{ category: 'social', label: 'talking', share_pct: 100 }] });
+  const again = blocksFor(later, byId(made), { now: t(8, 0, 0, '2026-10-13') }).save;
+  const before = again.find((b) => b.block_id === x.bed_block_id);
+  const slept = again.find((b) => b.block_id === x.sleep_block_id);
+  assert.equal(before.version, 2);
+  assert.equal(slept.version, 1);
 });
 
 test('an auto-closed night makes no blocks until the wake is logged', () => {

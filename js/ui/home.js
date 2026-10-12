@@ -95,21 +95,24 @@ function gapBanner(ctx) {
   ]);
 }
 
-// The small sleep control in the corner (PRD section 5.4). It shows only the next step:
-// bed when no night is open, then fell asleep and woke up. A tap saves at once.
+// Two fixed icons, written here as strings and never built from user text.
+const MOON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+const SUN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg>';
+
+function sleepButton(icon, text, onclick) {
+  const b = el('button', { type: 'button', class: 'btn btn-primary btn-sleep', onclick: onclick });
+  b.innerHTML = icon;
+  b.append(el('span', { text: text }));
+  return b;
+}
+
+// The small sleep control in the corner (PRD section 5.4). One solid blue button for the next step:
+// Going to bed when no night is open, then Woke up. There is no Fell asleep button, because nobody
+// taps a phone while falling asleep. The morning check asks about it instead (decided 12 Oct 2026).
 function sleepControl(ctx) {
   const night = ctx.state.openNight;
-  const tap = (kind) => () => sleepTap(ctx, kind);
-  if (!night) {
-    return el('div', { class: 'sleep-ctl' }, [el('button', { type: 'button', class: 'btn btn-small', onclick: tap('bed') }, 'Going to bed')]);
-  }
-  const buttons = [];
-  // A night closed by the 4:00 am rule has no sleep blocks yet, so only the wake can be tapped.
-  if (night.asleep_epoch === null && !night.auto_closed) {
-    buttons.push(el('button', { type: 'button', class: 'btn btn-small', onclick: tap('asleep') }, 'Fell asleep'));
-  }
-  buttons.push(el('button', { type: 'button', class: 'btn btn-small btn-primary', onclick: tap('wake') }, 'Woke up'));
-  return el('div', { class: 'sleep-ctl' }, buttons);
+  if (!night) return el('div', { class: 'sleep-ctl' }, [sleepButton(MOON, 'Going to bed', () => sleepTap(ctx, 'bed'))]);
+  return el('div', { class: 'sleep-ctl' }, [sleepButton(SUN, 'Woke up', () => sleepTap(ctx, 'wake'))]);
 }
 
 // Shown after a wake that nobody has reviewed yet. One tap opens the morning check.

@@ -100,6 +100,22 @@ export function makeLines(ctx, shared, opts) {
       const found = shared.categories.find((c) => !c.archived && c.name.toLowerCase() === String(categoryName).toLowerCase());
       first.label.setValue(labelText || '');
       if (found) first.picker.setId(found.id);
+    },
+    // Fills every line from saved lines [{category, label, share_pct}], adding lines as needed.
+    // Only call on a fresh form. The shares must add up to 100, as saved lines always do.
+    prefillAll(saved) {
+      while (lines.length < saved.length) {
+        const line = makeLine();
+        lines.push(line);
+        node.append(line.node);
+      }
+      shares = saved.map((l) => l.share_pct);
+      saved.forEach((l, i) => {
+        const found = shared.categories.find((c) => !c.archived && c.name.toLowerCase() === String(l.category).toLowerCase());
+        lines[i].label.setValue(l.label || '');
+        if (found) lines[i].picker.setId(found.id);
+      });
+      refresh();
     }
   };
 }

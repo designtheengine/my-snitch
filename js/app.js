@@ -20,7 +20,7 @@ import { openEntry } from './ui/entry.js';
 import { openSleepCheck } from './ui/sleep-view.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v13';
+export const APP_VERSION = 'v14';
 
 const panels = {
   home: document.getElementById('home'),
@@ -117,6 +117,7 @@ async function show(name, arg) {
     else if (name === 'entry') await openEntry(ctx, arg || 'start');
     else if (name === 'sleep') await openSleepCheck(ctx, panels.sleep, arg);
   } catch (err) {
+    console.error(err);
     warn('Something went wrong reading your saved data.');
   }
   window.scrollTo(0, 0);

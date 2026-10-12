@@ -6,13 +6,16 @@
 // The rules live in sleep.js. This file only draws and reacts.
 
 import { el, clear, section } from './dom.js';
-import { getAllSleep, getSleep, getBlock, getAllBlocks, getRunningBlock, saveNight } from '../db.js';
+import { getAllSleep, getSleep, getBlock, getAllBlocks, getAllLabels, getCategories, getRunningBlock, saveNight } from '../db.js';
 import {
   planBed, planChange, planDiscard, openNight, nightConflict, updateNight, checkNight,
-  SLEEP_CATEGORY, DOOM_CATEGORY
+  tryingLinesOf, TRYING_LABEL
 } from '../sleep.js';
 import { formatClock12, formatDuration, localDate } from '../time.js';
+import { usageCounts } from '../categories.js';
 import { makeTimePicker } from './timepick.js';
+import { makeShared } from './picks.js';
+import { makeLines } from './lines.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const AFTER_CHIPS = [
@@ -80,6 +83,7 @@ export async function openSleepCheck(ctx, root, data) {
   }
   const allBlocks = await getAllBlocks(ctx.db);
   const existing = await existingBlocks(ctx.db, night);
+  const shared = makeShared(await getCategories(ctx.db), usageCounts(allBlocks), await getAllLabels(ctx.db));
   const tz = ctx.tzOffsetMin();
 
   const clock = (epoch) => {
@@ -88,9 +92,11 @@ export async function openSleepCheck(ctx, root, data) {
     return (sameDay ? '' : parts[2] + ' ' + MONTHS[parts[1] - 1] + ', ') + formatClock12(epoch, tz);
   };
 
-  let tryingCategory = night.trying_category || SLEEP_CATEGORY;
-  let asleepSpec = { kind: 'none' };
+  // 'unset' means nothing is chosen yet. Nobody taps a phone while falling asleep, so the check asks.
+  let asleepSpec = { kind: night.reviewed ? 'none' : 'unset' };
   let discardArmed = false;
+  // Filling the lines at start-up fires change events before the screen exists, so update() waits for this.
+  let built = false;
 
   // ------------------------------------------------------------ the three moments
 
@@ -114,7 +120,7 @@ export async function openSleepCheck(ctx, root, data) {
   }
 
   function asleepEpoch() {
-    if (asleepSpec.kind === 'none') return null;
+    if (asleepSpec.kind === 'none' || asleepSpec.kind === 'unset') return null;
     if (asleepSpec.kind === 'after') return bedEpoch() + asleepSpec.min * 60;
     return asleepPicker.getEpoch();
   }
@@ -130,11 +136,17 @@ export async function openSleepCheck(ctx, root, data) {
     el('button', { type: 'button', class: 'btn btn-small', onclick: () => { picker.node.hidden = !picker.node.hidden; } }, 'Change');
 
   const asleepRow = el('div', { class: 'chip-row', role: 'group', 'aria-label': 'Fell asleep' });
-  const tryRow = el('div', { class: 'chip-row', role: 'group', 'aria-label': 'What the time before sleep was' });
-  const tryBox = el('div', {}, [
-    el('p', { class: 'muted', text: 'Bed to asleep: was it trying to sleep, or scrolling?' }),
-    tryRow
-  ]);
+
+  // The stretch from bed to sleep. It can hold any mix of activities, with shares and live minutes.
+  const ui = makeLines(ctx, shared, {
+    getDuration: () => {
+      const a = asleepEpoch();
+      return a === null || a <= bedEpoch() ? null : a - bedEpoch();
+    },
+    onChange: () => update(),
+    onMessage: (text) => { msg.textContent = text; }
+  });
+  ui.prefillAll(tryingLinesOf(night));
 
   function chip(text, selected, onclick) {
     return el('button', { type: 'button', class: 'chip', 'aria-pressed': String(selected), onclick: onclick }, text);
@@ -150,11 +162,6 @@ export async function openSleepCheck(ctx, root, data) {
       chip('Not tracked', asleepSpec.kind === 'none', () => chooseAsleep({ kind: 'none' }))
     );
     asleepPicker.node.hidden = asleepSpec.kind !== 'exact';
-    clear(tryRow);
-    tryRow.append(
-      chip('Trying to sleep', tryingCategory === SLEEP_CATEGORY, () => { tryingCategory = SLEEP_CATEGORY; drawChips(); update(); }),
-      chip('Doomscrolling', tryingCategory === DOOM_CATEGORY, () => { tryingCategory = DOOM_CATEGORY; drawChips(); update(); })
-    );
   }
 
   function chooseAsleep(spec) {
@@ -171,23 +178,39 @@ export async function openSleepCheck(ctx, root, data) {
   const sumLine = el('p', { class: 'muted' });
   const okBtn = el('button', { type: 'button', class: 'btn btn-primary', disabled: true, onclick: () => confirm() }, 'Looks right');
 
+  // The lines the person has entered for the stretch before sleep, or the saved ones while a
+  // category is still missing.
+  function tryingLines() {
+    return ui.ready() ? ui.getLines() : tryingLinesOf(night);
+  }
+
   function candidate() {
     return updateNight(night, {
       bed_epoch: bedEpoch(),
       asleep_epoch: asleepEpoch(),
       wake_epoch: wakeEpoch(),
-      trying_category: tryingCategory
+      trying_lines: tryingLines()
     });
   }
 
   function update() {
+    if (!built) return;
     const c = candidate();
     bedText.textContent = clock(c.bed_epoch);
     wakeText.textContent = clock(c.wake_epoch);
-    tryBox.hidden = !(c.asleep_epoch !== null && c.asleep_epoch > c.bed_epoch);
+    // The "before you fell asleep" card only makes sense when there is time between bed and sleep.
+    const hasBefore = c.asleep_epoch !== null && c.asleep_epoch > c.bed_epoch;
+    beforeSect.hidden = !hasBefore;
+    wakeSect.querySelector('.sect-num').textContent = hasBefore ? '4' : '3';
+    if (hasBefore) ui.refresh();
     const error = checkNight(c, ctx.nowEpoch());
     const conflict = error ? null : nightConflict(c, allBlocks, ctx.nowEpoch());
-    if (error) {
+    const needsChoice = asleepSpec.kind === 'unset';
+    const needsCategory = hasBefore && !ui.ready();
+    if (needsChoice && !error) {
+      msg.textContent = 'Pick how long it took to fall asleep, or Not tracked.';
+      sumLine.textContent = '';
+    } else if (error) {
       msg.textContent = error;
       sumLine.textContent = '';
     } else if (conflict) {
@@ -201,7 +224,7 @@ export async function openSleepCheck(ctx, root, data) {
       parts.push('In bed ' + formatDuration(c.wake_epoch - c.bed_epoch));
       sumLine.textContent = parts.join(' · ');
     }
-    okBtn.disabled = !!error || !!conflict;
+    okBtn.disabled = !!error || !!conflict || needsChoice || needsCategory;
   }
 
   async function confirm() {
@@ -212,13 +235,17 @@ export async function openSleepCheck(ctx, root, data) {
       bed_epoch: c.bed_epoch,
       asleep_epoch: c.asleep_epoch,
       wake_epoch: c.wake_epoch,
-      trying_category: tryingCategory,
+      trying_lines: c.trying_lines,
       reviewed: true
     }, existing, ctx.nowEpoch());
     if (plan.error) {
       msg.textContent = plan.error;
       update();
       return;
+    }
+    // Labels you typed count for suggestions. The default "trying to sleep" does not.
+    if (c.asleep_epoch !== null && c.asleep_epoch > c.bed_epoch) {
+      plan.bump = { lines: c.trying_lines.filter((l) => l.label !== '' && l.label !== TRYING_LABEL), now: ctx.nowEpoch() };
     }
     try {
       await saveNight(ctx.db, plan);
@@ -249,6 +276,16 @@ export async function openSleepCheck(ctx, root, data) {
 
   // ------------------------------------------------------------ the screen
 
+  const beforeSect = section(3, 'Before you fell asleep', [
+    el('p', { class: 'muted', text: 'What did you do between going to bed and falling asleep? Split it if it was more than one thing.' }),
+    ui.node,
+    ui.splitBtn
+  ]);
+  const wakeSect = section(3, 'Woke up', [
+    el('div', { class: 'chip-row' }, [wakeText, changeBtn(wakePicker)]),
+    wakePicker.node
+  ]);
+
   root.append(
     el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: 'Last night' })]),
     section(1, 'Went to bed', [
@@ -259,13 +296,10 @@ export async function openSleepCheck(ctx, root, data) {
     section(2, 'Fell asleep', [
       el('p', { class: 'muted', text: 'About how long after bed?' }),
       asleepRow,
-      asleepPicker.node,
-      tryBox
+      asleepPicker.node
     ]),
-    section(3, 'Woke up', [
-      el('div', { class: 'chip-row' }, [wakeText, changeBtn(wakePicker)]),
-      wakePicker.node
-    ]),
+    beforeSect,
+    wakeSect,
     sumLine,
     msg,
     el('div', { class: 'btn-row' }, [
@@ -274,6 +308,7 @@ export async function openSleepCheck(ctx, root, data) {
     ]),
     el('div', { class: 'discard' }, [discardBtn])
   );
+  built = true;
   drawChips();
   update();
 }
