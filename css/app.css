@@ -578,6 +578,6 @@ h1, h2, p { margin: 0; }
 #entry .btn-wide { width: 100%; border: 1px dashed var(--accent); color: var(--accent); background: transparent; }
 #entry .btn-row { margin-top: var(--space-2); padding-bottom: var(--space-4); }
 #entry .btn-row .btn { border-width: 1px; }
-#entry .btn-row .btn:not(.btn-primary) { background: transparent; border-color: transparent; color: var(--text-muted); flex: 0 0 30%; }
-#entry .btn-row .btn-primary { min-height: 48px; font-size: 16px; }
+#entry .btn-row .btn:not(.btn-primary) { background: transparent; border-color: transparent; color: var(--text-muted); }
+#entry .btn-row .btn-primary { font-size: 15px; }
 #entry .newbox .btn:not(.btn-primary) { border-color: var(--accent); color: var(--accent); background: transparent; }
