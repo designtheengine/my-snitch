@@ -9,23 +9,30 @@ import {
   getRunningBlock,
   getDirtyBlocks,
   getBlocksByDay,
-  getSetting
+  getSetting,
+  getAllSleep,
+  saveNight
 } from './db.js';
 import { reportingDay, dayGaps } from './time.js';
+import { wakesFrom, latestWake, heldBlockIds, openNight, unreviewedNight, planAutoClose } from './sleep.js';
 import { drawHome, stopTicker } from './ui/home.js';
 import { openEntry } from './ui/entry.js';
+import { openSleepCheck } from './ui/sleep-view.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v12';
+export const APP_VERSION = 'v13';
 
 const panels = {
   home: document.getElementById('home'),
-  entry: document.getElementById('entry')
+  entry: document.getElementById('entry'),
+  sleep: document.getElementById('sleep')
 };
 const warnEl = document.getElementById('warn');
 
 let ctx = null;
 let current = 'home';
+// Wake events from the sleep store, kept up to date by loadState, so dayFor stays a plain function.
+let wakes = [];
 
 function nowEpoch() {
   return Math.floor(Date.now() / 1000);
@@ -44,10 +51,10 @@ function newId() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Phase 5 adds the wake times from the sleep store here. Until then no wake exists,
-// so the day is the date of the start time minus four hours (spec section 6.3).
+// The most recent wake at or before the start decides the day. With no wake yet (the first days),
+// the day is the date of the start time minus four hours (spec section 6.3).
 function dayFor(startEpoch) {
-  return reportingDay(startEpoch, tzOffsetMin(), []);
+  return reportingDay(startEpoch, tzOffsetMin(), wakes);
 }
 
 function warn(message) {
@@ -61,6 +68,10 @@ warnEl.addEventListener('click', () => {
 
 async function loadState(db) {
   const now = nowEpoch();
+  // The nights come first, because every day below depends on the wake times.
+  const nights = await getAllSleep(db);
+  wakes = wakesFrom(nights);
+  const held = heldBlockIds(nights);
   const [categories, running, dirty, lastSyncedAt, dayBlocks, gapMin] = await Promise.all([
     getCategories(db),
     getRunningBlock(db),
@@ -69,13 +80,14 @@ async function loadState(db) {
     getBlocksByDay(db, dayFor(now)),
     getSetting(db, 'gap_threshold_min')
   ]);
-  // Blocks still running are never synced, so they are not in the list.
+  // Blocks still running are never synced, so they are not in the list. Neither are the blocks of a
+  // night whose wake is not logged yet: they wait until the day they count toward is known.
   const unsynced = dirty
-    .filter((b) => b.running !== 1 && b.end_epoch !== null && !b.is_deleted)
+    .filter((b) => b.running !== 1 && b.end_epoch !== null && !b.is_deleted && !held.has(b.block_id))
     .sort((a, b) => b.start_epoch - a.start_epoch);
   // The gap banner reads today's blocks plus the running one, which may have started on an earlier day.
   const gapBlocks = running && !dayBlocks.some((b) => b.block_id === running.block_id) ? dayBlocks.concat([running]) : dayBlocks;
-  const gaps = dayGaps({ blocks: gapBlocks, nowEpoch: now, thresholdSec: gapMin * 60 }).map((g) => ({
+  const gaps = dayGaps({ blocks: gapBlocks, nowEpoch: now, thresholdSec: gapMin * 60, wakeEpoch: latestWake(nights) }).map((g) => ({
     start: g.start,
     end: g.end,
     toNow: g.end === now
@@ -85,6 +97,8 @@ async function loadState(db) {
     running: running || null,
     unsynced: unsynced,
     gaps: gaps,
+    openNight: openNight(nights),
+    unreviewed: unreviewedNight(nights),
     lastSyncedAt: lastSyncedAt || null
   };
 }
@@ -101,6 +115,7 @@ async function show(name, arg) {
   try {
     if (name === 'home') await refresh();
     else if (name === 'entry') await openEntry(ctx, arg || 'start');
+    else if (name === 'sleep') await openSleepCheck(ctx, panels.sleep, arg);
   } catch (err) {
     warn('Something went wrong reading your saved data.');
   }
@@ -112,6 +127,23 @@ async function applyTheme(db) {
   const theme = await getSetting(db, 'theme');
   if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
   else document.documentElement.removeAttribute('data-theme');
+}
+
+// The 4:00 am rule (spec section 6.3, rule 4). When the app opens and the day has a wake but no bed,
+// and it is past 04:00 on a later date, the day closes with an auto-closed bed at that 04:00.
+async function autoClose(db) {
+  try {
+    const nights = await getAllSleep(db);
+    const plan = planAutoClose({
+      nights: nights,
+      running: await getRunningBlock(db),
+      now: nowEpoch(),
+      makeId: newId
+    });
+    if (plan) await saveNight(db, plan);
+  } catch (err) {
+    warn('Could not close yesterday at 4:00 am. Nothing was changed.');
+  }
 }
 
 async function boot() {
@@ -132,6 +164,7 @@ async function boot() {
       refresh: refresh
     };
     await applyTheme(db);
+    await autoClose(db);
     await show('home');
   } catch (err) {
     panels.home.textContent = 'Storage could not open on this phone. Close the app and open it again.';
@@ -161,7 +194,8 @@ document.addEventListener('touchcancel', () => {
 
 // Coming back to the app redraws Home, so the timer shows the right elapsed time at once.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && ctx && current === 'home') refresh().catch(() => {});
+  if (document.hidden || !ctx) return;
+  if (current === 'home') autoClose(ctx.db).then(() => refresh()).catch(() => {});
 });
 
 boot();

@@ -1,12 +1,14 @@
 // home.js: the Home view (PRD section 5.1). It only draws and reacts to taps.
 // Phase 3 built the status card, the sync bar and the unsynced list.
 // Stop and Switch open the End screen (split at the moment a block ends). Change edits the running block.
-// Phase 4 added the "missed something" button and the gap banner. The sleep control arrives in Phase 5.
+// Phase 4 added the "missed something" button and the gap banner. Phase 5 added the sleep control
+// and the "review last night" banner.
 
 import { el, clear, catStyle } from './dom.js';
 import { elapsedSeconds, displayMinutes } from '../model.js';
 import { formatDuration, formatClock12, localDate, latestGap } from '../time.js';
 import { truncateForList } from '../labels.js';
+import { sleepTap } from './sleep-view.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -93,6 +95,33 @@ function gapBanner(ctx) {
   ]);
 }
 
+// The small sleep control in the corner (PRD section 5.4). It shows only the next step:
+// bed when no night is open, then fell asleep and woke up. A tap saves at once.
+function sleepControl(ctx) {
+  const night = ctx.state.openNight;
+  const tap = (kind) => () => sleepTap(ctx, kind);
+  if (!night) {
+    return el('div', { class: 'sleep-ctl' }, [el('button', { type: 'button', class: 'btn btn-small', onclick: tap('bed') }, 'Going to bed')]);
+  }
+  const buttons = [];
+  // A night closed by the 4:00 am rule has no sleep blocks yet, so only the wake can be tapped.
+  if (night.asleep_epoch === null && !night.auto_closed) {
+    buttons.push(el('button', { type: 'button', class: 'btn btn-small', onclick: tap('asleep') }, 'Fell asleep'));
+  }
+  buttons.push(el('button', { type: 'button', class: 'btn btn-small btn-primary', onclick: tap('wake') }, 'Woke up'));
+  return el('div', { class: 'sleep-ctl' }, buttons);
+}
+
+// Shown after a wake that nobody has reviewed yet. One tap opens the morning check.
+function reviewBanner(ctx) {
+  const night = ctx.state.unreviewed;
+  if (!night) return null;
+  return el('button', { type: 'button', class: 'banner', onclick: () => ctx.show('sleep', { nightId: night.night_id }) }, [
+    el('div', { class: 'banner-title', text: 'Review last night' }),
+    el('div', { class: 'banner-sub', text: night.auto_closed ? 'Auto-closed at 4:00 am. Tap to check the times.' : 'Tap to check bed, asleep and wake times.' })
+  ]);
+}
+
 function syncBar(ctx) {
   const last = ctx.state.lastSyncedAt;
   const lastText = last ? formatClock12(last, ctx.tzOffsetMin()) : 'never';
@@ -151,8 +180,10 @@ export function drawHome(ctx) {
   clear(root);
   // append() prints a null as the word "null" (log I4), so an absent banner is left out of the list.
   const banner = gapBanner(ctx);
+  const review = reviewBanner(ctx);
   root.append(
-    el('div', { class: 'head' }, [el('h1', { class: 'title', text: 'my snitch.' })]),
+    el('div', { class: 'head' }, [el('h1', { class: 'title', text: 'my snitch.' }), sleepControl(ctx)]),
+    ...(review ? [review] : []),
     statusCard(ctx),
     missedButton(ctx),
     ...(banner ? [banner] : []),

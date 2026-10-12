@@ -581,3 +581,25 @@ h1, h2, p { margin: 0; }
 #entry .btn-row .btn:not(.btn-primary) { background: transparent; border-color: transparent; color: var(--text-muted); }
 #entry .btn-row .btn-primary { font-size: 15px; }
 #entry .newbox .btn:not(.btn-primary) { border-color: var(--accent); color: var(--accent); background: transparent; }
+
+/* ---------------------------------------------------------------- sleep (Phase 5)
+   The corner control on Home, and the morning check. The check is its own panel, so it
+   repeats the entry screen rules it shares (cards, chips, buttons). */
+
+.sleep-ctl { display: flex; gap: var(--space-2); }
+.sleep-ctl .btn-small { min-height: 36px; font-size: 14px; }
+
+#sleep { font-size: 15px; }
+#sleep .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+#sleep .title { font-size: 22px; }
+#sleep .select { min-height: 42px; font-size: 16px; padding: 0 6px; }
+#sleep .chip-row { align-items: center; gap: var(--space-2); }
+#sleep .chip-row .chip { min-height: 38px; padding: 0 12px; }
+#sleep .chip-row .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+#sleep .btn-row { margin-top: var(--space-2); padding-bottom: var(--space-2); }
+#sleep .btn-row .btn { border-width: 1px; }
+#sleep .btn-row .btn:not(.btn-primary) { background: transparent; border-color: transparent; color: var(--text-muted); }
+#sleep .btn-row .btn-primary { font-size: 15px; }
+#sleep .btn-small { border-color: var(--accent); color: var(--accent); background: transparent; }
+.btn-text { background: transparent; border-color: transparent; color: var(--text-muted); }
+.discard { text-align: center; padding-bottom: var(--space-4); }

@@ -291,6 +291,23 @@ export function putSleep(db, record) {
   });
 }
 
+// Saves one sleep plan (from sleep.js) in a single transaction, all or nothing: the night record,
+// its blocks, a running block that the plan ends, and any blocks or record it removes.
+// Label counts are left alone on purpose, so "trying to sleep" never shows up as a suggestion.
+export function saveNight(db, plan) {
+  return writeTx(db, ['blocks', 'sleep'], (tx) => {
+    const blocks = tx.objectStore('blocks');
+    const stop = plan.stop;
+    if (stop && stop.action === 'remove') blocks.delete(stop.block_id);
+    if (stop && stop.action === 'update') blocks.put(stop.block);
+    for (const b of plan.save) blocks.put(b);
+    for (const id of plan.remove) blocks.delete(id);
+    const nights = tx.objectStore('sleep');
+    if (plan.night) nights.put(plan.night);
+    if (plan.deleteNightId) nights.delete(plan.deleteNightId);
+  });
+}
+
 export async function getSleep(db, nightId) {
   const tx = db.transaction('sleep', 'readonly');
   return requestToPromise(tx.objectStore('sleep').get(nightId));
