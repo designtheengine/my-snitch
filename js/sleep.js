@@ -244,6 +244,14 @@ export function openNight(nights) {
   return open.length ? open.reduce((a, b) => (b.bed_epoch > a.bed_epoch ? b : a)) : null;
 }
 
+// A night still open this long after bed is probably a forgotten wake tap (decided 14 Oct 2026).
+// Tapping Woke up then asks for the real time first and saves nothing until you confirm it.
+export const STALE_OPEN_HOURS = 14;
+
+export function isStaleOpenNight(night, nowEpoch) {
+  return night.wake_epoch === null && nowEpoch - night.bed_epoch > STALE_OPEN_HOURS * 3600;
+}
+
 // The latest night with a wake that nobody has reviewed yet, or null.
 export function unreviewedNight(nights) {
   const todo = nights.filter((n) => n.wake_epoch !== null && !n.reviewed);

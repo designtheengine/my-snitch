@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   newNight, updateNight, checkNight, desiredBlocks, blocksFor, nightConflict, planBed, planChange,
   planDiscard, planAutoClose, wakesFrom, latestWake, heldBlockIds, openNight, unreviewedNight,
-  tryingLinesOf, TRYING_LABEL, SLEEP_LABEL
+  tryingLinesOf, isStaleOpenNight, STALE_OPEN_HOURS, TRYING_LABEL, SLEEP_LABEL
 } from '../js/sleep.js';
 import { createBlock, markSynced } from '../js/model.js';
 import { reportingDay, epochFromLocal, localDate } from '../js/time.js';
@@ -256,4 +256,25 @@ test('nightConflict finds a block the night would land on, and ignores its own b
 
 test('localDate sanity for the test helper', () => {
   assert.equal(localDate(t(23), IST), '2026-10-12');
+});
+
+test('an open night is stale only after 14 hours, and only while no wake is logged', () => {
+  const x = night();
+  assert.equal(STALE_OPEN_HOURS, 14);
+  assert.equal(isStaleOpenNight(x, x.bed_epoch + 14 * 3600), false);
+  assert.equal(isStaleOpenNight(x, x.bed_epoch + 14 * 3600 + 1), true);
+  assert.equal(isStaleOpenNight(x, x.bed_epoch + 8 * 3600), false);
+  const woke = updateNight(x, { wake_epoch: x.bed_epoch + 8 * 3600, wake_offset_min: IST });
+  assert.equal(isStaleOpenNight(woke, x.bed_epoch + 30 * 3600), false);
+});
+
+test('a wake confirmed later takes the day of the real wake, not of the tap', () => {
+  const x = night();
+  const real = updateNight(x, { wake_epoch: t(7, 0, 0, '2026-10-13'), wake_offset_min: IST });
+  assert.equal(real.day, '2026-10-13');
+  const res = planChange(x, { wake_epoch: t(7, 0, 0, '2026-10-13'), wake_offset_min: IST, reviewed: true }, {}, t(18, 31, 0, '2026-10-14'));
+  assert.equal(res.error, undefined);
+  assert.equal(res.night.day, '2026-10-13');
+  assert.equal(res.save[0].day, '2026-10-13');
+  assert.equal(res.save[0].running, 0);
 });

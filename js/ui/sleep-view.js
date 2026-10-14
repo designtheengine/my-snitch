@@ -8,8 +8,8 @@
 import { el, clear, section } from './dom.js';
 import { getAllSleep, getSleep, getBlock, getAllBlocks, getAllLabels, getCategories, getRunningBlock, saveNight } from '../db.js';
 import {
-  planBed, planChange, planDiscard, openNight, nightConflict, updateNight, checkNight,
-  tryingLinesOf, TRYING_LABEL
+  planBed, planChange, planDiscard, openNight, nightConflict, updateNight, checkNight, isStaleOpenNight,
+  tryingLinesOf, TRYING_LABEL, STALE_OPEN_HOURS
 } from '../sleep.js';
 import { formatClock12, formatDuration, localDate } from '../time.js';
 import { usageCounts } from '../categories.js';
@@ -53,6 +53,12 @@ export async function sleepTap(ctx, kind) {
       await ctx.refresh();
       return;
     }
+    // A wake tap long after bed is probably a forgotten tap. Nothing is saved yet: the check opens
+    // with the wake wheels showing, and the night is saved when you confirm the real time.
+    if (kind === 'wake' && isStaleOpenNight(open, now)) {
+      await ctx.show('sleep', { nightId: open.night_id, pendingWake: now });
+      return;
+    }
     const existing = await existingBlocks(ctx.db, open);
     const changes = kind === 'asleep' ? { asleep_epoch: now } : { wake_epoch: now, wake_offset_min: ctx.tzOffsetMin() };
     const plan = planChange(open, changes, existing, now);
@@ -77,7 +83,9 @@ export async function sleepTap(ctx, kind) {
 export async function openSleepCheck(ctx, root, data) {
   clear(root);
   const night = data && data.nightId ? await getSleep(ctx.db, data.nightId) : null;
-  if (!night || night.wake_epoch === null) {
+  // pendingWake is the moment of a late Woke up tap. It is not saved until Looks right.
+  const pendingWake = data && Number.isInteger(data.pendingWake) ? data.pendingWake : null;
+  if (!night || (night.wake_epoch === null && pendingWake === null)) {
     await ctx.show('home');
     return;
   }
@@ -104,9 +112,12 @@ export async function openSleepCheck(ctx, root, data) {
   const asleepPicker = makeTimePicker(ctx, 'Asleep', () => update());
   const wakePicker = makeTimePicker(ctx, 'Wake', () => update());
   bedPicker.setEpoch(night.bed_epoch);
-  wakePicker.setEpoch(night.wake_epoch);
+  wakePicker.setEpoch(night.wake_epoch === null ? pendingWake : night.wake_epoch);
   asleepPicker.setEpoch(night.asleep_epoch === null ? night.bed_epoch : night.asleep_epoch);
   for (const p of [bedPicker, asleepPicker, wakePicker]) p.node.hidden = true;
+  if (pendingWake !== null) wakePicker.node.hidden = false;
+  // The offset of the wake. A saved wake keeps its own, and a wake still to be saved takes this phone's.
+  const wakeOffset = night.wake_offset_min !== null && night.wake_offset_min !== undefined ? night.wake_offset_min : tz;
 
   if (night.asleep_epoch !== null) {
     const diff = night.asleep_epoch - night.bed_epoch;
@@ -189,6 +200,7 @@ export async function openSleepCheck(ctx, root, data) {
       bed_epoch: bedEpoch(),
       asleep_epoch: asleepEpoch(),
       wake_epoch: wakeEpoch(),
+      wake_offset_min: wakeOffset,
       trying_lines: tryingLines()
     });
   }
@@ -235,6 +247,7 @@ export async function openSleepCheck(ctx, root, data) {
       bed_epoch: c.bed_epoch,
       asleep_epoch: c.asleep_epoch,
       wake_epoch: c.wake_epoch,
+      wake_offset_min: wakeOffset,
       trying_lines: c.trying_lines,
       reviewed: true
     }, existing, ctx.nowEpoch());
@@ -282,6 +295,9 @@ export async function openSleepCheck(ctx, root, data) {
     ui.splitBtn
   ]);
   const wakeSect = section(3, 'Woke up', [
+    pendingWake !== null
+      ? el('p', { class: 'muted', text: 'It is more than ' + STALE_OPEN_HOURS + ' hours since you went to bed. Set the time you really woke up. Nothing is saved until you tap Looks right.' })
+      : null,
     el('div', { class: 'chip-row' }, [wakeText, changeBtn(wakePicker)]),
     wakePicker.node
   ]);
