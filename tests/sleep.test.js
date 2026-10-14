@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   newNight, updateNight, checkNight, desiredBlocks, blocksFor, nightConflict, planBed, planChange,
   planDiscard, planAutoClose, wakesFrom, latestWake, heldBlockIds, openNight, unreviewedNight,
-  tryingLinesOf, isStaleOpenNight, STALE_OPEN_HOURS, TRYING_LABEL, SLEEP_LABEL
+  tryingLinesOf, isStaleOpenNight, STALE_OPEN_HOURS, redayBlocks, withReday, isLongNight, LONG_NIGHT_HOURS,
+  TRYING_LABEL, SLEEP_LABEL
 } from '../js/sleep.js';
 import { createBlock, markSynced } from '../js/model.js';
 import { reportingDay, epochFromLocal, localDate } from '../js/time.js';
@@ -277,4 +278,59 @@ test('a wake confirmed later takes the day of the real wake, not of the tap', ()
   assert.equal(res.night.day, '2026-10-13');
   assert.equal(res.save[0].day, '2026-10-13');
   assert.equal(res.save[0].running, 0);
+});
+
+// ------------------------------------------------------------ v16: re-day and long nights
+
+const plain = (id, start, end, day, over = {}) => createBlock(Object.assign({
+  block_id: id, start_epoch: start, end_epoch: end, tz_offset_min: IST, day,
+  lines: [{ category: 'office work', label: '', share_pct: 100 }], entry_mode: 'timer', now: start
+}, over));
+
+test('redayBlocks: a block saved before its wake was logged gets the day of that wake', () => {
+  const b = plain('o1', t(10, 0, 0, '2026-10-14'), t(11, 0, 0, '2026-10-14'), '2026-10-13');
+  const wakes = [{ epoch: t(7, 0, 0, '2026-10-13'), offset_min: IST }, { epoch: t(7, 0, 0, '2026-10-14'), offset_min: IST }];
+  const out = redayBlocks([b], wakes);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].day, '2026-10-14');
+  assert.equal(out[0].version, 1);
+});
+
+test('redayBlocks: a synced block gets a new version, and unchanged days make no edit', () => {
+  const wakes = [{ epoch: t(7, 0, 0, '2026-10-14'), offset_min: IST }];
+  const synced = markSynced(plain('o1', t(10, 0, 0, '2026-10-14'), t(11, 0, 0, '2026-10-14'), '2026-10-13'), 1);
+  assert.equal(redayBlocks([synced], wakes)[0].version, 2);
+  const right = plain('o2', t(10, 0, 0, '2026-10-14'), t(11, 0, 0, '2026-10-14'), '2026-10-14');
+  assert.deepEqual(redayBlocks([right], wakes), []);
+});
+
+test('redayBlocks leaves night blocks and deleted blocks alone', () => {
+  const wakes = [{ epoch: t(7, 0, 0, '2026-10-14'), offset_min: IST }];
+  const nightBlock = plain('n1', t(10, 0, 0, '2026-10-14'), t(11, 0, 0, '2026-10-14'), '2026-10-13', { entry_mode: 'sleep' });
+  const gone = Object.assign(plain('d1', t(10, 0, 0, '2026-10-14'), t(11, 0, 0, '2026-10-14'), '2026-10-13'), { is_deleted: true });
+  assert.deepEqual(redayBlocks([nightBlock, gone], wakes), []);
+});
+
+test('withReday adds the edited blocks to the plan, using the plan\'s own night as the latest wake', () => {
+  const x = night();
+  const b = plain('o1', t(10, 0, 0, '2026-10-14'), t(11, 0, 0, '2026-10-14'), '2026-10-13');
+  const plan = planChange(x, { wake_epoch: t(7, 0, 0, '2026-10-14'), wake_offset_min: IST }, {}, t(18, 31, 0, '2026-10-14'));
+  const full = withReday(plan, [x], [b]);
+  assert.equal(full.save.length, plan.save.length + 1);
+  assert.equal(full.save[full.save.length - 1].day, '2026-10-14');
+});
+
+test('withReday after a discard recomputes days without the discarded night', () => {
+  const x = updateNight(night(), { wake_epoch: t(7, 0, 0, '2026-10-13'), wake_offset_min: IST });
+  const b = plain('o1', t(10, 0, 0, '2026-10-14'), t(11, 0, 0, '2026-10-14'), '2026-10-13');
+  const full = withReday(planDiscard(x, {}), [x], [b]);
+  assert.equal(full.save[0].day, '2026-10-14');
+});
+
+test('isLongNight: over 16 hours from bed to wake, and never without a wake', () => {
+  const x = night();
+  assert.equal(LONG_NIGHT_HOURS, 16);
+  assert.equal(isLongNight(x), false);
+  assert.equal(isLongNight(updateNight(x, { wake_epoch: x.bed_epoch + 16 * 3600, wake_offset_min: IST })), false);
+  assert.equal(isLongNight(updateNight(x, { wake_epoch: x.bed_epoch + 16 * 3600 + 1, wake_offset_min: IST })), true);
 });

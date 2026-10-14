@@ -10,7 +10,7 @@
 // Nobody taps a phone while falling asleep, so "fell asleep" is normally set in the morning check.
 
 import { createBlock, editBlock, deleteBlock, stopBlock, findOverlaps } from './model.js';
-import { nightDay, autoCloseEpoch } from './time.js';
+import { nightDay, autoCloseEpoch, reportingDay } from './time.js';
 
 export const SLEEP_CATEGORY = 'sleep';
 export const DOOM_CATEGORY = 'doomscrolling';
@@ -256,4 +256,38 @@ export function isStaleOpenNight(night, nowEpoch) {
 export function unreviewedNight(nights) {
   const todo = nights.filter((n) => n.wake_epoch !== null && !n.reviewed);
   return todo.length ? todo.reduce((a, b) => (b.wake_epoch > a.wake_epoch ? b : a)) : null;
+}
+
+// ---------------------------------------------------------------- days that follow the wake (v16)
+
+// A block takes its day from the latest wake at or before its start (spec section 6.3). If a wake is
+// logged late, blocks saved in the meantime hold the day of the wake before it. This works out every
+// ordinary block's day again from the full list of wakes. A block whose day changes is edited under the
+// normal rules, so a synced block gets a new version. Night blocks keep the day of their own night.
+export function redayBlocks(blocks, wakes) {
+  const edited = [];
+  for (const b of blocks) {
+    if (b.is_deleted || b.entry_mode === 'sleep') continue;
+    const day = reportingDay(b.start_epoch, b.tz_offset_min, wakes);
+    if (day !== b.day) edited.push(editBlock(b, { day: day }));
+  }
+  return edited;
+}
+
+// Adds the re-dayed blocks to a sleep plan. nights is every saved night, blocks is every saved block.
+// The plan's own night replaces its old copy, and a discarded night leaves the list.
+export function withReday(plan, nights, blocks) {
+  if (plan.error) return plan;
+  const drop = plan.night ? plan.night.night_id : plan.deleteNightId;
+  const after = nights.filter((n) => n.night_id !== drop).concat(plan.night ? [plan.night] : []);
+  return Object.assign({}, plan, { save: plan.save.concat(redayBlocks(blocks, wakesFrom(after))) });
+}
+
+// ---------------------------------------------------------------- very long nights (v16)
+
+export const LONG_NIGHT_HOURS = 16;
+
+// Bed to wake over 16 hours is usually a forgotten tap. The check asks for a second tap.
+export function isLongNight(night) {
+  return night.wake_epoch !== null && night.wake_epoch - night.bed_epoch > LONG_NIGHT_HOURS * 3600;
 }

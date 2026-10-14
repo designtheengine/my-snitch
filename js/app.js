@@ -20,7 +20,7 @@ import { openEntry } from './ui/entry.js';
 import { openSleepCheck } from './ui/sleep-view.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v15';
+export const APP_VERSION = 'v16';
 
 const panels = {
   home: document.getElementById('home'),

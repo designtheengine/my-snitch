@@ -9,7 +9,7 @@ import { el, clear, section } from './dom.js';
 import { getAllSleep, getSleep, getBlock, getAllBlocks, getAllLabels, getCategories, getRunningBlock, saveNight } from '../db.js';
 import {
   planBed, planChange, planDiscard, openNight, nightConflict, updateNight, checkNight, isStaleOpenNight,
-  tryingLinesOf, TRYING_LABEL, STALE_OPEN_HOURS
+  tryingLinesOf, TRYING_LABEL, STALE_OPEN_HOURS, withReday, isLongNight
 } from '../sleep.js';
 import { formatClock12, formatDuration, localDate } from '../time.js';
 import { usageCounts } from '../categories.js';
@@ -72,7 +72,8 @@ export async function sleepTap(ctx, kind) {
       plan.save = [];
       plan.remove = [];
     }
-    await saveNight(ctx.db, plan);
+    // A wake changes the day of blocks that follow it, so they are worked out again in the same save.
+    await saveNight(ctx.db, kind === 'wake' ? withReday(plan, nights, await getAllBlocks(ctx.db)) : plan);
     if (kind === 'wake') await ctx.show('sleep', { nightId: open.night_id });
     else await ctx.refresh();
   } catch (err) {
@@ -90,6 +91,7 @@ export async function openSleepCheck(ctx, root, data) {
     return;
   }
   const allBlocks = await getAllBlocks(ctx.db);
+  const allNights = await getAllSleep(ctx.db);
   const existing = await existingBlocks(ctx.db, night);
   const shared = makeShared(await getCategories(ctx.db), usageCounts(allBlocks), await getAllLabels(ctx.db));
   const tz = ctx.tzOffsetMin();
@@ -105,6 +107,8 @@ export async function openSleepCheck(ctx, root, data) {
   let discardArmed = false;
   // Filling the lines at start-up fires change events before the screen exists, so update() waits for this.
   let built = false;
+  // A night over 16 hours needs a second tap on Looks right. Any change to the times starts again.
+  let longArmed = false;
 
   // ------------------------------------------------------------ the three moments
 
@@ -207,6 +211,8 @@ export async function openSleepCheck(ctx, root, data) {
 
   function update() {
     if (!built) return;
+    longArmed = false;
+    okBtn.textContent = 'Looks right';
     const c = candidate();
     bedText.textContent = clock(c.bed_epoch);
     wakeText.textContent = clock(c.wake_epoch);
@@ -241,16 +247,22 @@ export async function openSleepCheck(ctx, root, data) {
 
   async function confirm() {
     if (okBtn.disabled) return;
-    okBtn.disabled = true;
     const c = candidate();
-    const plan = planChange(night, {
+    if (isLongNight(c) && !longArmed) {
+      longArmed = true;
+      msg.textContent = 'That is a long night. If it is right, tap Yes, save it.';
+      okBtn.textContent = 'Yes, save it';
+      return;
+    }
+    okBtn.disabled = true;
+    const plan = withReday(planChange(night, {
       bed_epoch: c.bed_epoch,
       asleep_epoch: c.asleep_epoch,
       wake_epoch: c.wake_epoch,
       wake_offset_min: wakeOffset,
       trying_lines: c.trying_lines,
       reviewed: true
-    }, existing, ctx.nowEpoch());
+    }, existing, ctx.nowEpoch()), allNights, allBlocks);
     if (plan.error) {
       msg.textContent = plan.error;
       update();
