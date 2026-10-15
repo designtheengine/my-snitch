@@ -603,3 +603,11 @@ h1, h2, p { margin: 0; }
 #sleep .btn-small { border-color: var(--accent); color: var(--accent); background: transparent; }
 .btn-text { background: transparent; border-color: transparent; color: var(--text-muted); }
 .discard { text-align: center; padding-bottom: var(--space-4); }
+
+/* ---------------------------------------------------------------- sheet connection (Phase 6) */
+#connect { font-size: 15px; }
+#connect .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+#connect .title { font-size: 22px; }
+#connect .btn-row { margin-top: var(--space-2); padding-bottom: var(--space-4); }
+#connect .btn-row .btn:not(.btn-primary) { background: transparent; border-color: transparent; color: var(--text-muted); }
+.key-link { margin-top: var(--space-2); min-height: 36px; font-size: 13px; padding: 0; }

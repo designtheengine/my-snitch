@@ -228,7 +228,10 @@ export function isSyncEligible(block, opts) {
 
 // One row per line. The row_id is block_id:version:line_index, so a retry after a
 // failed sync produces the same ids and the script skips rows it already holds.
-export function outgoingRows(block) {
+// role is the block's part in a night: 'before_sleep', 'sleep' or empty for an ordinary block.
+// It goes to the Sheet as the night_role column, which lets the sleep latency tab find the stretch
+// between going to bed and falling asleep (log Q15, decided 15 Oct 2026).
+export function outgoingRows(block, role) {
   if (block.end_epoch === null) throw new Error('a running block cannot be synced');
   const tz = block.tz_offset_min;
   return block.lines.map((line, i) => ({
@@ -246,7 +249,8 @@ export function outgoingRows(block) {
     share_pct: line.share_pct,
     is_deleted: block.is_deleted,
     entry_mode: block.entry_mode,
-    logged_at: toIso(block.logged_at, tz)
+    logged_at: toIso(block.logged_at, tz),
+    night_role: role || ''
   }));
 }
 

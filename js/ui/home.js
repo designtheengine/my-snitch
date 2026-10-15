@@ -125,19 +125,25 @@ function reviewBanner(ctx) {
   ]);
 }
 
+// The sync bar (PRD section 8). The button is Set up until the key is saved on this phone, then Sync.
+// A line under it tells you what the last tap did. Change key opens the small connection screen.
 function syncBar(ctx) {
   const last = ctx.state.lastSyncedAt;
   const lastText = last ? formatClock12(last, ctx.tzOffsetMin()) : 'never';
   const count = ctx.state.unsynced.length;
+  const hasKey = ctx.state.hasKey;
+  const busy = ctx.state.syncing;
+  const note = ctx.state.syncNote || (hasKey ? '' : 'Enter your Sheet key to start syncing.');
   return el('div', { class: 'card' }, [
     el('div', { class: 'sync-bar' }, [
       el('div', {}, [
         el('div', { text: count + ' unsynced' }),
         el('div', { class: 'muted', text: 'Last synced: ' + lastText })
       ]),
-      el('button', { type: 'button', class: 'btn', disabled: true }, 'Sync')
+      el('button', { type: 'button', class: 'btn' + (hasKey ? ' btn-primary' : ''), disabled: busy, onclick: () => ctx.sync() }, busy ? 'Syncing' : hasKey ? 'Sync' : 'Set up')
     ]),
-    el('div', { class: 'muted msg', text: 'Sync to your Sheet arrives in Phase 6.' })
+    ...(note ? [el('div', { class: 'muted msg', text: note })] : []),
+    ...(hasKey ? [el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('connect') }, 'Change key')] : [])
   ]);
 }
 

@@ -5,6 +5,8 @@
 // new indexes, new fields. An upgrade step never deletes a store or a field.
 
 import { bumpLabel } from './labels.js';
+import { markSynced } from './model.js';
+import { syncLock } from './sync.js';
 
 export const DB_NAME = 'mysnitch';
 export const DB_VERSION = 1;
@@ -63,6 +65,16 @@ function writeTx(db, stores, work) {
       fail(e);
     }
   });
+}
+
+// While a sync is running, the blocks in it cannot be changed (log D56, Q11 option a). Every write that
+// touches a block asks here first. The caller gets a failed result, and the screens already show
+// "Nothing was changed. Try again." for that. The lock ends when the reply arrives or after 30 seconds.
+function lockedWrite(blockIds) {
+  if (!syncLock.blocks(blockIds, Date.now())) return null;
+  const err = new Error('a sync is running, try again in a few seconds');
+  err.code = 'sync_locked';
+  return Promise.reject(err);
 }
 
 // Adds or bumps the label of every line, inside the given transaction.
@@ -162,6 +174,8 @@ export async function getBlocksStartingBetween(db, fromEpoch, toEpoch) {
 // so a block and its label counts are saved together or not at all.
 // Pass bumpLabels false when an edit leaves the labels as they were.
 export function saveBlock(db, block, opts) {
+  const blocked = lockedWrite([block.block_id]);
+  if (blocked) return blocked;
   const nowEpoch = opts && opts.now !== undefined ? opts.now : block.logged_at;
   const bump = !(opts && opts.bumpLabels === false);
   return writeTx(db, ['blocks', 'labels'], (tx) => {
@@ -175,6 +189,8 @@ export function saveBlock(db, block, opts) {
 // items: [{block, bumpLabels}]. bumpLabels defaults to true. Trimmed older blocks pass false.
 // A label shared by several new blocks (the stretches of a fill-around) is counted once.
 export function saveBlocks(db, items, opts) {
+  const blocked = lockedWrite(items.map((i) => i.block.block_id));
+  if (blocked) return blocked;
   const nowEpoch = opts && opts.now !== undefined ? opts.now : Math.floor(Date.now() / 1000);
   return writeTx(db, ['blocks', 'labels'], (tx) => {
     const blocks = tx.objectStore('blocks');
@@ -189,6 +205,8 @@ export function saveBlocks(db, items, opts) {
 
 // Removes a block record. Only for blocks that were never synced.
 export function removeBlock(db, blockId) {
+  const blocked = lockedWrite([blockId]);
+  if (blocked) return blocked;
   return writeTx(db, 'blocks', (tx) => {
     tx.objectStore('blocks').delete(blockId);
   });
@@ -198,6 +216,11 @@ export function removeBlock(db, blockId) {
 // a moment with two running blocks or none. stopResult comes from model.stopBlock,
 // or is null when nothing was running. nextBlock comes from model.createBlock.
 export function applySwitch(db, stopResult, nextBlock, opts) {
+  const ids = [nextBlock.block_id];
+  if (stopResult && stopResult.action === 'remove') ids.push(stopResult.block_id);
+  if (stopResult && stopResult.action === 'update') ids.push(stopResult.block.block_id);
+  const blocked = lockedWrite(ids);
+  if (blocked) return blocked;
   const nowEpoch = opts && opts.now !== undefined ? opts.now : nextBlock.logged_at;
   return writeTx(db, ['blocks', 'labels'], (tx) => {
     const blocks = tx.objectStore('blocks');
@@ -209,6 +232,21 @@ export function applySwitch(db, stopResult, nextBlock, opts) {
       ? nextBlock.lines.concat(stopResult.block.lines)
       : nextBlock.lines;
     bumpLabelsIn(tx, counted, nowEpoch);
+  });
+}
+
+// After the Sheet confirms blocks. delivered is [{block_id, version}] from sync.js. Each block is marked
+// as synced up to the version that was sent, and stays dirty if it moved on meanwhile (model.markSynced).
+// This write is not checked against the lock, because the sync itself holds it until this is done.
+export function markDelivered(db, delivered) {
+  return writeTx(db, 'blocks', (tx) => {
+    const store = tx.objectStore('blocks');
+    for (const d of delivered) {
+      const read = store.get(d.block_id);
+      read.onsuccess = () => {
+        if (read.result) store.put(markSynced(read.result, d.version));
+      };
+    }
   });
 }
 
@@ -296,6 +334,11 @@ export function putSleep(db, record) {
 // Labels you typed in the morning check count for suggestions (plan.bump), but the default
 // "trying to sleep" never does, because the caller leaves it out of plan.bump.
 export function saveNight(db, plan) {
+  const ids = plan.save.map((b) => b.block_id).concat(plan.remove);
+  if (plan.stop && plan.stop.action === 'remove') ids.push(plan.stop.block_id);
+  if (plan.stop && plan.stop.action === 'update') ids.push(plan.stop.block.block_id);
+  const blocked = lockedWrite(ids);
+  if (blocked) return blocked;
   return writeTx(db, ['blocks', 'sleep', 'labels'], (tx) => {
     const blocks = tx.objectStore('blocks');
     const stop = plan.stop;

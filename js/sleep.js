@@ -238,6 +238,24 @@ export function heldBlockIds(nights) {
   return held;
 }
 
+// The part each night block plays, for the night_role column in the Sheet (decided 15 Oct 2026, log Q15).
+// 'before_sleep' is the stretch from bed to asleep, 'sleep' is asleep to wake. When fell asleep was not
+// tracked, the single block from bed to wake is plain 'sleep'. Returns {block_id: role}. A night with
+// no wake yet gets no roles, because its blocks are not sent.
+export function nightRoles(nights) {
+  const roles = {};
+  for (const n of nights) {
+    if (n.wake_epoch === null) continue;
+    if (n.asleep_epoch === null) {
+      roles[n.bed_block_id] = 'sleep';
+    } else {
+      if (n.asleep_epoch > n.bed_epoch) roles[n.bed_block_id] = 'before_sleep';
+      roles[n.sleep_block_id] = 'sleep';
+    }
+  }
+  return roles;
+}
+
 // The night that is open now (bed logged, wake not), or null.
 export function openNight(nights) {
   const open = nights.filter((n) => n.wake_epoch === null);

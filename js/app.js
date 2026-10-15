@@ -11,21 +11,27 @@ import {
   getBlocksByDay,
   getSetting,
   getAllSleep,
-  saveNight
+  getAllBlocks,
+  saveNight,
+  setSetting,
+  markDelivered
 } from './db.js';
 import { reportingDay, dayGaps } from './time.js';
 import { wakesFrom, latestWake, heldBlockIds, openNight, unreviewedNight, planAutoClose } from './sleep.js';
 import { drawHome, stopTicker } from './ui/home.js';
 import { openEntry } from './ui/entry.js';
 import { openSleepCheck } from './ui/sleep-view.js';
+import { openConnect } from './ui/connect.js';
+import { runSync, syncLock, friendlyError, DEFAULT_SCRIPT_URL } from './sync.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v16';
+export const APP_VERSION = 'v17';
 
 const panels = {
   home: document.getElementById('home'),
   entry: document.getElementById('entry'),
-  sleep: document.getElementById('sleep')
+  sleep: document.getElementById('sleep'),
+  connect: document.getElementById('connect')
 };
 const warnEl = document.getElementById('warn');
 
@@ -33,6 +39,9 @@ let ctx = null;
 let current = 'home';
 // Wake events from the sleep store, kept up to date by loadState, so dayFor stays a plain function.
 let wakes = [];
+// The Sync button's state. The note is the line under the button, and it lasts until the next tap.
+let syncing = false;
+let syncNote = '';
 
 function nowEpoch() {
   return Math.floor(Date.now() / 1000);
@@ -72,13 +81,14 @@ async function loadState(db) {
   const nights = await getAllSleep(db);
   wakes = wakesFrom(nights);
   const held = heldBlockIds(nights);
-  const [categories, running, dirty, lastSyncedAt, dayBlocks, gapMin] = await Promise.all([
+  const [categories, running, dirty, lastSyncedAt, dayBlocks, gapMin, key] = await Promise.all([
     getCategories(db),
     getRunningBlock(db),
     getDirtyBlocks(db),
     getSetting(db, 'last_synced_at'),
     getBlocksByDay(db, dayFor(now)),
-    getSetting(db, 'gap_threshold_min')
+    getSetting(db, 'gap_threshold_min'),
+    getSetting(db, 'secret_key')
   ]);
   // Blocks still running are never synced, so they are not in the list. Neither are the blocks of a
   // night whose wake is not logged yet: they wait until the day they count toward is known.
@@ -99,7 +109,11 @@ async function loadState(db) {
     gaps: gaps,
     openNight: openNight(nights),
     unreviewed: unreviewedNight(nights),
-    lastSyncedAt: lastSyncedAt || null
+    lastSyncedAt: lastSyncedAt || null,
+    // Only whether a key exists goes into the state, never the key itself.
+    hasKey: !!key,
+    syncing: syncing,
+    syncNote: syncNote
   };
 }
 
@@ -116,11 +130,56 @@ async function show(name, arg) {
     if (name === 'home') await refresh();
     else if (name === 'entry') await openEntry(ctx, arg || 'start');
     else if (name === 'sleep') await openSleepCheck(ctx, panels.sleep, arg);
+    else if (name === 'connect') await openConnect(ctx, panels.connect);
   } catch (err) {
     console.error(err);
     warn('Something went wrong reading your saved data.');
   }
   window.scrollTo(0, 0);
+}
+
+function setSyncNote(text) {
+  syncNote = text;
+}
+
+// One tap of the Sync button (PRD section 8). It sends every unsynced block in batches, with the
+// lock from sync.js holding those blocks still, then marks the confirmed ones as synced and lets go.
+async function doSync() {
+  if (syncing || !ctx) return;
+  const db = ctx.db;
+  const key = await getSetting(db, 'secret_key');
+  if (!key) {
+    await show('connect');
+    return;
+  }
+  syncing = true;
+  syncNote = '';
+  await refresh();
+  try {
+    const url = (await getSetting(db, 'script_url')) || DEFAULT_SCRIPT_URL;
+    const [blocks, nights] = await Promise.all([getAllBlocks(db), getAllSleep(db)]);
+    const result = await runSync({
+      blocks: blocks,
+      nights: nights,
+      url: url,
+      key: key,
+      appVersion: APP_VERSION,
+      syncId: 's-' + newId(),
+      fetchFn: (u, o) => fetch(u, o)
+    });
+    if (result.delivered.length > 0) await markDelivered(db, result.delivered);
+    if (result.status === 'ok') await setSetting(db, 'last_synced_at', nowEpoch());
+    if (result.status === 'nothing') syncNote = 'Nothing to sync.';
+    else if (result.status === 'ok') syncNote = 'Synced ' + result.blockCount + (result.blockCount === 1 ? ' block.' : ' blocks.');
+    else syncNote = friendlyError(result.error);
+  } catch (err) {
+    console.error(err);
+    syncNote = 'The sync stopped. Nothing was lost. Try again.';
+  } finally {
+    syncLock.release();
+    syncing = false;
+  }
+  await refresh();
 }
 
 // The theme follows the phone unless Settings forces light or dark (Settings arrives in Phase 8).
@@ -162,7 +221,9 @@ async function boot() {
       dayFor: dayFor,
       warn: warn,
       show: show,
-      refresh: refresh
+      refresh: refresh,
+      sync: doSync,
+      setSyncNote: setSyncNote
     };
     await applyTheme(db);
     await autoClose(db);
