@@ -133,7 +133,8 @@ export function friendlyError(code) {
 
 // Runs one tap of the Sync button.
 //   args: blocks, nights (everything stored), url, key, appVersion, syncId, fetchFn,
-//         lock (default syncLock), nowMs (function, default Date.now), size, requestMs
+//         lock (default syncLock), nowMs (function, default Date.now), size, requestMs,
+//         onAttempt (optional, async: called with [{block_id, version}] before the first request)
 // It takes the lock for every block it sends, and leaves it held. The caller saves the delivered
 // blocks as synced and THEN calls lock.release(), so nothing can slip in between.
 // Returns {status, delivered, blockCount, error}
@@ -149,6 +150,15 @@ export async function runSync(args) {
   if (list.length === 0) return { status: 'nothing', delivered: [], blockCount: 0, error: null };
   const batches = buildBatches(list, nightRoles(args.nights), args.size);
   lock.acquire(list.map((b) => b.block_id), nowMs());
+  // Before anything leaves the phone, the app notes which versions are about to be sent (log Q17). If the
+  // note cannot be saved, nothing is sent, so a lost reply can never hide an edit.
+  if (args.onAttempt) {
+    try {
+      await args.onAttempt(list.map((b) => ({ block_id: b.block_id, version: b.version })));
+    } catch (err) {
+      return { status: 'failed', delivered: [], blockCount: list.length, error: 'attempt' };
+    }
+  }
   const delivered = [];
   for (let i = 0; i < batches.length; i++) {
     const body = requestBody({

@@ -4,16 +4,17 @@
 //   change: changes the category and label of the running block, the timer keeps counting (this file).
 //   end:    the End screen that Stop and Switch open, with split (end.js).
 //   late:   logs time you forgot to log (late.js).
-//   edit:   Phase 7.
+//   edit:   changes a saved block (late.js), or opens the sleep check for a block of a night. Phase 7.
 // Check-in has no mode of its own: it folds into late mode (decided 11 Oct 2026, log Q8).
 //
 // openEntry(ctx, arg): arg is a mode name such as 'start' or 'late', or an object:
 //   {mode: 'late', gap: {start, end, toNow}}       the gap banner opens late mode with a gap filled in
 //   {mode: 'end', next: 'stop' or 'switch'}        the End screen
 //   {mode: 'start', ending: {end, lines, changed}} the start form after the End screen, for a switch
+//   {mode: 'edit', blockId, back}                  a saved block from Home or History. back is 'home' or 'history'.
 
 import { el, clear } from './dom.js';
-import { getCategories, getAllBlocks, getAllLabels, getRunningBlock, applySwitch, saveBlock } from '../db.js';
+import { getCategories, getAllBlocks, getAllLabels, getAllSleep, getRunningBlock, applySwitch, saveBlock } from '../db.js';
 import { switchBlock, editBlock } from '../model.js';
 import { usageCounts } from '../categories.js';
 import { formatClock12 } from '../time.js';
@@ -43,6 +44,29 @@ export async function openEntry(ctx, arg) {
   const shared = makeShared(categories, usageCounts(blocks), labelRecords);
   running = running || null;
 
+  if (opts.mode === 'edit') {
+    const back = opts.back === 'history' ? 'history' : 'home';
+    const target = blocks.find((b) => b.block_id === opts.blockId);
+    if (!target || target.is_deleted || target.running === 1) {
+      await ctx.show(back);
+      return;
+    }
+    // The blocks of a night are drawn from one night record, so they are edited together in the sleep check,
+    // which redraws both (spec section 6.8).
+    if (target.entry_mode === 'sleep') {
+      const nights = await getAllSleep(ctx.db);
+      const night = nights.find((n) => n.bed_block_id === target.block_id || n.sleep_block_id === target.block_id);
+      if (night && night.wake_epoch !== null) {
+        await ctx.show('sleep', { nightId: night.night_id, back: back });
+        return;
+      }
+      ctx.warn('That block belongs to a night that is still open. Tap Woke up first.');
+      await ctx.show(back);
+      return;
+    }
+    openLate(ctx, root, { shared: shared, blocks: blocks, running: running, gap: null, edit: target, back: back });
+    return;
+  }
   if (opts.mode === 'late') {
     openLate(ctx, root, { shared: shared, blocks: blocks, running: running, gap: opts.gap || null });
     return;

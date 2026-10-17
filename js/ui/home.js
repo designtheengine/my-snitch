@@ -2,7 +2,7 @@
 // Phase 3 built the status card, the sync bar and the unsynced list.
 // Stop and Switch open the End screen (split at the moment a block ends). Change edits the running block.
 // Phase 4 added the "missed something" button and the gap banner. Phase 5 added the sleep control
-// and the "review last night" banner.
+// and the "review last night" banner. Phase 7 made rows tappable (edit mode) and added the History link.
 
 import { el, clear, catStyle } from './dom.js';
 import { elapsedSeconds, displayMinutes } from '../model.js';
@@ -147,7 +147,11 @@ function syncBar(ctx) {
   ]);
 }
 
-function entryRow(ctx, block, today) {
+// One row of a block list. Home lists the unsynced blocks and History lists the synced ones, with this same row.
+// opts.onTap: what a tap does (edit mode). Leave it out for a row that does nothing, such as a pending deletion.
+// opts.showDate: false hides the date in the row, for History, where a day heading already says it.
+export function entryRow(ctx, block, today, opts) {
+  const options = opts || {};
   const first = block.lines[0];
   const tz = block.tz_offset_min;
   const split = block.lines.length > 1;
@@ -159,27 +163,44 @@ function entryRow(ctx, block, today) {
   const mins = split ? displayMinutes(block.end_epoch - block.start_epoch, block.lines.map((l) => l.share_pct)) : null;
   const names = split ? block.lines.map((l, i) => l.category + ' ' + mins[i] + ' min').join(' / ') : first.category;
   const range = formatClock12(block.start_epoch, tz) + ' to ' + formatClock12(block.end_epoch, tz);
-  const date = localDate(block.start_epoch, tz) === today ? '' : shortDate(block.start_epoch, tz) + ', ';
+  const date = options.showDate === false || localDate(block.start_epoch, tz) === today ? '' : shortDate(block.start_epoch, tz) + ', ';
   const sub = names + ' \u00b7 ' + date + range + ' \u00b7 ' + formatDuration(block.end_epoch - block.start_epoch);
-  return el('li', { class: 'row' }, [
+  // A block the Sheet already holds, with a newer version waiting, is an "edit". A deleted one waits to send its deletion.
+  const tag = block.is_deleted ? 'deleted' : block.synced_version >= 1 && block.dirty === 1 ? 'edit' : null;
+  const tappable = typeof options.onTap === 'function' && !block.is_deleted;
+  return el('li', {
+    class: 'row' + (tappable ? ' row-tap' : ''),
+    role: tappable ? 'button' : null,
+    tabindex: tappable ? '0' : null,
+    onclick: tappable ? options.onTap : null,
+    onkeydown: tappable ? (e) => { if (e.key === 'Enter' || e.key === ' ') options.onTap(); } : null
+  }, [
     el('span', { class: 'dot', style: catStyle(slotFor(ctx, first.category)) }),
     el('div', { class: 'row-main' }, [
       el('div', { class: 'row-title', text: title }),
       el('div', { class: 'muted', text: sub })
     ]),
-    block.synced_version >= 1 ? el('span', { class: 'tag', text: 'edit' }) : null
+    tag ? el('span', { class: 'tag', text: tag }) : null
   ]);
 }
 
 function unsyncedList(ctx) {
   const list = ctx.state.unsynced;
-  const wrap = el('div', {}, [el('div', { class: 'section-label', text: 'Unsynced' })]);
+  // The label row carries the way into History, where synced blocks live (decided 17 Oct 2026, D64).
+  const wrap = el('div', {}, [
+    el('div', { class: 'list-head' }, [
+      el('div', { class: 'section-label', text: 'Unsynced' }),
+      el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('history', { fresh: true }) }, 'History')
+    ])
+  ]);
   if (list.length === 0) {
     wrap.append(el('div', { class: 'card empty', text: 'Nothing waiting. Blocks you stop will show up here.' }));
     return wrap;
   }
   const today = localDate(ctx.nowEpoch(), ctx.tzOffsetMin());
-  wrap.append(el('ul', { class: 'entry-list' }, list.map((b) => entryRow(ctx, b, today))));
+  // Tapping a row edits the block (Phase 7, D35). The edit screen returns to Home.
+  const tap = (b) => () => ctx.show('entry', { mode: 'edit', blockId: b.block_id, back: 'home' });
+  wrap.append(el('ul', { class: 'entry-list' }, list.map((b) => entryRow(ctx, b, today, { onTap: tap(b) }))));
   return wrap;
 }
 

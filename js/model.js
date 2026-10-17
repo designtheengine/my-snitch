@@ -147,7 +147,9 @@ export function createBlock(args) {
     is_deleted: false,
     entry_mode: args.entry_mode,
     logged_at: args.now,
-    running: end === null ? 1 : 0
+    running: end === null ? 1 : 0,
+    // The highest version a sync tap has tried to send, confirmed or not (log Q17, Phase 7).
+    attempted_version: 0
   };
   validateTimes(block);
   return block;
@@ -159,12 +161,27 @@ const EDITABLE = ['start_epoch', 'end_epoch', 'tz_offset_min', 'day', 'lines'];
 
 // The bump rule (spec section 5): a block that matches what the Sheet holds gets a new
 // version. A block that is already ahead of the Sheet keeps its version, so repeated
-// edits collapse into one. A block never synced stays at version 1.
+// edits collapse into one. A block never sent stays at version 1.
+// Phase 7 adds one case (log Q17). If the current version was sent at least once but the Sheet's
+// reply never arrived, the Sheet may already hold it. An edit then needs a new version too,
+// or the retry would reuse the same row ids and the Sheet would skip the edit as a duplicate.
 function bumped(block) {
+  const attempted = block.attempted_version || 0;
   if (block.synced_version >= 1 && block.version === block.synced_version) {
     return block.synced_version + 1;
   }
+  if (attempted >= block.version && block.version > block.synced_version) {
+    return block.version + 1;
+  }
   return block.version;
+}
+
+// Notes that a sync tap is about to send this version. Nothing else about the block changes:
+// it keeps its version and stays dirty until the Sheet confirms it. Takes the highest of the two.
+export function markAttempted(block, versionSent) {
+  const attempted = Math.max(block.attempted_version || 0, versionSent);
+  if (attempted === (block.attempted_version || 0)) return block;
+  return Object.assign({}, block, { attempted_version: attempted });
 }
 
 // changes may hold start_epoch, end_epoch, tz_offset_min, day and lines.
@@ -196,11 +213,14 @@ export function editBlock(block, changes) {
 }
 
 // Returns {action, ...}
-//   remove: never synced, so the record goes and nothing is ever sent. Carries block_id.
-//   update: synced, so a deletion version is saved. Carries block.
+//   remove: never sent, so the record goes and nothing is ever sent. Carries block_id.
+//   update: synced, or sent without a confirmed reply (the Sheet may hold it, log Q17),
+//           so a deletion version is saved. Carries block.
 //   none:   already deleted.
 export function deleteBlock(block) {
-  if (block.synced_version === 0) return { action: 'remove', block_id: block.block_id };
+  if (block.synced_version === 0 && (block.attempted_version || 0) === 0) {
+    return { action: 'remove', block_id: block.block_id };
+  }
   if (block.is_deleted) return { action: 'none', block: block };
   const next = Object.assign({}, block, { is_deleted: true, dirty: 1, running: 0 });
   next.lines = copyLines(block.lines);
@@ -402,6 +422,63 @@ export function planLateSave(candidate, blocks, nowEpoch, opts) {
     })
   );
   return { refused: null, trims: trims, swallowed: swallowed, newBlocks: newBlocks };
+}
+
+// ---------------------------------------------------------------- editing a saved block (Phase 7)
+
+// Works out everything an edit of a saved block will do, without saving anything. It follows the same
+// overlap rules as planLateSave (log D29), with one difference: the edited block keeps its identity.
+//   existing:  the block as stored
+//   changes:   {start_epoch, end_epoch, lines}. The day is worked out from the new start with opts.dayFor.
+//   blocks:    every block on the phone
+//   opts.makeId, opts.dayFor: as in planLateSave
+// Returns:
+//   unchanged:  true when nothing really changed. Nothing else is filled in, and nothing should be saved.
+//   refused:    the older block the edited block now sits fully inside, or null
+//   trims:      [{older, kind, trimmed}] as in planLateSave
+//   swallowed:  older blocks the edited block now covers whole. They are never changed.
+//   edited:     the edited block, or null when nothing is left to save (every second is covered)
+//   newBlocks:  extra blocks for the other stretches when swallowed blocks split the edit. Version 1, new ids.
+// The first stretch is the edited block itself, so a synced block gets a new version under the normal rules.
+export function planEditSave(existing, changes, blocks, nowEpoch, opts) {
+  const empty = { unchanged: false, refused: null, trims: [], swallowed: [], edited: null, newBlocks: [] };
+  const candidate = editBlock(existing, {
+    start_epoch: changes.start_epoch,
+    end_epoch: changes.end_epoch,
+    day: opts.dayFor(changes.start_epoch),
+    lines: changes.lines
+  });
+  if (candidate === existing) return Object.assign({}, empty, { unchanged: true });
+  const found = findOverlaps(candidate, blocks, nowEpoch);
+  const inside = found.conflicts.find((c) => c.kind === 'inside');
+  if (inside) return Object.assign({}, empty, { refused: inside.block });
+  const trims = [];
+  const swallowed = [];
+  for (const c of found.conflicts) {
+    if (c.kind === 'covers') swallowed.push(c.block);
+    else trims.push({ older: c.block, kind: c.kind, trimmed: trimOlder(c.block, c.kind, candidate, nowEpoch, opts.dayFor) });
+  }
+  const stretches = stretchesAround(candidate.start_epoch, candidate.end_epoch, swallowed, nowEpoch);
+  if (stretches.length === 0) return Object.assign({}, empty, { trims: trims, swallowed: swallowed });
+  const edited = editBlock(existing, {
+    start_epoch: stretches[0].start_epoch,
+    end_epoch: stretches[0].end_epoch,
+    day: opts.dayFor(stretches[0].start_epoch),
+    lines: changes.lines
+  });
+  const newBlocks = stretches.slice(1).map((s) =>
+    createBlock({
+      block_id: opts.makeId(),
+      start_epoch: s.start_epoch,
+      end_epoch: s.end_epoch,
+      tz_offset_min: existing.tz_offset_min,
+      day: opts.dayFor(s.start_epoch),
+      lines: changes.lines,
+      entry_mode: existing.entry_mode,
+      now: nowEpoch
+    })
+  );
+  return Object.assign({}, empty, { trims: trims, swallowed: swallowed, edited: edited, newBlocks: newBlocks });
 }
 
 // ---------------------------------------------------------------- late logging helpers

@@ -4,7 +4,8 @@ import {
   largestRemainder, fitShares, maxShare, moveSlider, addLine, removeLine,
   displayMinutes, lineMinutes, validateLines, createBlock, editBlock, deleteBlock,
   markSynced, isSyncEligible, outgoingRows, elapsedSeconds, stopBlock, switchBlock,
-  findOverlaps, trimOlder, stretchesAround, planLateSave, lastEndedBlock, finishBlock, SCHEMA_VERSION
+  findOverlaps, trimOlder, stretchesAround, planLateSave, lastEndedBlock, finishBlock, SCHEMA_VERSION,
+  markAttempted, planEditSave
 } from '../js/model.js';
 import { epochFromLocal } from '../js/time.js';
 
@@ -642,4 +643,137 @@ test('lastEndedBlock: the latest end wins, and deleted and running blocks are ig
   assert.equal(lastEndedBlock([a, b, gone, run]).block_id, 'b');
   assert.equal(lastEndedBlock([run]), null);
   assert.equal(lastEndedBlock([]), null);
+});
+
+// ------------------------------------------------------------ Phase 7: sent but never confirmed (log Q17)
+
+test('markAttempted notes the version and changes nothing else', () => {
+  const b = make();
+  const m = markAttempted(b, 1);
+  assert.equal(m.attempted_version, 1);
+  assert.equal(m.version, 1);
+  assert.equal(m.synced_version, 0);
+  assert.equal(m.dirty, 1);
+  assert.equal(b.attempted_version, 0, 'the input block is not changed');
+  assert.equal(markAttempted(m, 1), m, 'nothing new to note, same object back');
+  assert.equal(markAttempted(m, 3).attempted_version, 3, 'the highest version wins');
+});
+
+test('edit after a send with no confirmed reply gets a new version, so the retry cannot be skipped (Q17)', () => {
+  const sent = markAttempted(make(), 1);
+  const edited = editBlock(sent, { end_epoch: t(15) });
+  assert.equal(edited.version, 2);
+  assert.equal(edited.synced_version, 0);
+  assert.equal(edited.dirty, 1);
+  assert.notEqual(outgoingRows(edited)[0].row_id, outgoingRows(sent)[0].row_id);
+});
+
+test('a second edit before the next send collapses into the same new version', () => {
+  const sent = markAttempted(make(), 1);
+  const once = editBlock(sent, { end_epoch: t(15) });
+  const twice = editBlock(once, { end_epoch: t(14, 45) });
+  assert.equal(twice.version, 2);
+});
+
+test('after a confirmed sync the normal rule applies again', () => {
+  const sent = markAttempted(make(), 1);
+  const confirmed = markSynced(sent, 1);
+  assert.equal(editBlock(confirmed, { end_epoch: t(15) }).version, 2);
+  const v2 = markSynced(markAttempted(editBlock(confirmed, { end_epoch: t(15) }), 2), 2);
+  assert.equal(editBlock(v2, { end_epoch: t(14, 45) }).version, 3);
+});
+
+test('a block sent at version 2 with no reply gets version 3 on the next edit', () => {
+  const v2 = markAttempted(editBlock(markSynced(make(), 1), { end_epoch: t(15) }), 2);
+  assert.equal(v2.version, 2);
+  assert.equal(editBlock(v2, { end_epoch: t(14, 45) }).version, 3);
+});
+
+test('delete: a block that was never sent is removed, one that was sent without a reply gets a deletion version', () => {
+  assert.equal(deleteBlock(make()).action, 'remove');
+  const res = deleteBlock(markAttempted(make(), 1));
+  assert.equal(res.action, 'update');
+  assert.equal(res.block.is_deleted, true);
+  assert.equal(res.block.version, 2);
+  assert.equal(res.block.dirty, 1);
+});
+
+// ------------------------------------------------------------ Phase 7: editing a saved block
+
+const dayFor = () => '2026-09-29';
+let editIds = 0;
+const editOpts = () => ({ makeId: () => 'x' + ++editIds, dayFor: dayFor });
+
+test('planEditSave: nothing changed means unchanged and nothing to save', () => {
+  const a = blockAt('a', t(9), t(10));
+  const plan = planEditSave(a, { start_epoch: t(9), end_epoch: t(10), lines: one() }, [a], t(18), editOpts());
+  assert.equal(plan.unchanged, true);
+  assert.equal(plan.edited, null);
+});
+
+test('planEditSave: shortening a synced block makes version 2 and trims nobody', () => {
+  const a = syncedAt(blockAt('a', t(9), t(10)), 1);
+  const plan = planEditSave(a, { start_epoch: t(9), end_epoch: t(9, 30), lines: one() }, [a], t(18), editOpts());
+  assert.equal(plan.edited.version, 2);
+  assert.equal(plan.edited.end_epoch, t(9, 30));
+  assert.equal(plan.edited.synced_version, 1);
+  assert.deepEqual(plan.trims, []);
+  assert.deepEqual(plan.newBlocks, []);
+});
+
+test('planEditSave: new lines and a new share are kept', () => {
+  const a = blockAt('a', t(9), t(10));
+  const lines = [{ category: 'admin', label: 'mail', share_pct: 70 }, { category: 'learning', label: '', share_pct: 30 }];
+  const plan = planEditSave(a, { start_epoch: t(9), end_epoch: t(10), lines: lines }, [a], t(18), editOpts());
+  assert.deepEqual(plan.edited.lines, lines);
+  assert.equal(plan.edited.version, 1, 'never sent, so changed in place');
+});
+
+test('planEditSave: an edit that sits inside an older block is refused', () => {
+  const a = blockAt('a', t(9), t(10));
+  const big = blockAt('big', t(11), t(14));
+  const plan = planEditSave(a, { start_epoch: t(12), end_epoch: t(13), lines: one() }, [a, big], t(18), editOpts());
+  assert.equal(plan.refused.block_id, 'big');
+  assert.equal(plan.edited, null);
+});
+
+test('planEditSave: growing over a neighbour fills around it and leaves it alone (D29)', () => {
+  const a = blockAt('a', t(9), t(10));
+  const mid = syncedAt(blockAt('mid', t(10, 30), t(11)), 1);
+  const plan = planEditSave(a, { start_epoch: t(9), end_epoch: t(12), lines: one() }, [a, mid], t(18), editOpts());
+  assert.equal(plan.edited.block_id, 'a', 'the edited block keeps its identity as the first stretch');
+  assert.equal(plan.edited.start_epoch, t(9));
+  assert.equal(plan.edited.end_epoch, t(10, 30));
+  assert.equal(plan.newBlocks.length, 1);
+  assert.equal(plan.newBlocks[0].start_epoch, t(11));
+  assert.equal(plan.newBlocks[0].end_epoch, t(12));
+  assert.equal(plan.newBlocks[0].version, 1);
+  assert.deepEqual(plan.swallowed.map((b) => b.block_id), ['mid']);
+  assert.equal(mid.version, 1, 'the older block is not changed');
+});
+
+test('planEditSave: growing into a neighbour offers to trim it', () => {
+  const a = blockAt('a', t(9), t(10));
+  const next = syncedAt(blockAt('n', t(10, 30), t(11, 30)), 1);
+  const plan = planEditSave(a, { start_epoch: t(9), end_epoch: t(11), lines: one() }, [a, next], t(18), editOpts());
+  assert.equal(plan.trims.length, 1);
+  assert.equal(plan.trims[0].kind, 'ends-inside');
+  assert.equal(plan.trims[0].trimmed.start_epoch, t(11));
+  assert.equal(plan.trims[0].trimmed.version, 2, 'a synced neighbour gets a new version when trimmed');
+});
+
+test('planEditSave: moving a block to another day works the day out again', () => {
+  const a = syncedAt(blockAt('a', t(9), t(10)), 1);
+  const plan = planEditSave(a, { start_epoch: t(9, 0, 0, '2026-09-28'), end_epoch: t(10, 0, 0, '2026-09-28'), lines: one() }, [a], t(18), {
+    makeId: () => 'z', dayFor: (e) => (e < t(0, 0, 0, '2026-09-29') ? '2026-09-28' : '2026-09-29')
+  });
+  assert.equal(plan.edited.day, '2026-09-28');
+  assert.equal(plan.edited.version, 2);
+});
+
+test('planEditSave: a block never conflicts with itself', () => {
+  const a = blockAt('a', t(9), t(10));
+  const plan = planEditSave(a, { start_epoch: t(9, 15), end_epoch: t(9, 45), lines: one() }, [a], t(18), editOpts());
+  assert.equal(plan.refused, null);
+  assert.equal(plan.edited.start_epoch, t(9, 15));
 });

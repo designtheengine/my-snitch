@@ -5,7 +5,7 @@ import {
 } from '../js/sync.js';
 import { saveBlock, saveBlocks, removeBlock, applySwitch, saveNight } from '../js/db.js';
 import { syncLock } from '../js/sync.js';
-import { createBlock, editBlock, markSynced, outgoingRows } from '../js/model.js';
+import { createBlock, editBlock, markSynced, markAttempted, outgoingRows } from '../js/model.js';
 import { newNight, updateNight, nightRoles, blocksFor } from '../js/sleep.js';
 import { epochFromLocal } from '../js/time.js';
 
@@ -225,6 +225,57 @@ test('a night\'s blocks that are still held are never sent', async () => {
   const made = blocksFor(night, {}, { now: t(23) }).save;
   const res = await runSync(base({ blocks: made, nights: [night], fetchFn: async () => { throw new Error('should not be called'); } }));
   assert.equal(res.status, 'nothing');
+});
+
+// ---------------------------------------------------------------- sent but not confirmed (log Q17)
+
+test('onAttempt is told what is about to be sent, before the first request', async () => {
+  const order = [];
+  const sheet = fakeSheet();
+  const res = await runSync(base({
+    blocks: [block('a', 9, 10), block('b', 11, 12)],
+    lock: createLock(),
+    fetchFn: async (u, o) => { order.push('request'); return sheet.fetchFn(u, o); },
+    onAttempt: async (sending) => { order.push('attempt:' + sending.map((s) => s.block_id + 'v' + s.version).join(',')); }
+  }));
+  assert.equal(res.status, 'ok');
+  assert.deepEqual(order, ['attempt:av1,bv1', 'request']);
+});
+
+test('if the attempt note cannot be saved, nothing is sent', async () => {
+  let called = false;
+  const res = await runSync(base({
+    blocks: [block('a', 9, 10)],
+    lock: createLock(),
+    fetchFn: async () => { called = true; },
+    onAttempt: async () => { throw new Error('disk full'); }
+  }));
+  assert.equal(res.status, 'failed');
+  assert.equal(res.error, 'attempt');
+  assert.equal(called, false);
+});
+
+test('a lost reply, then an edit, then a retry: the Sheet receives the edit (log Q17)', async () => {
+  const sheet = fakeSheet();
+  const lock = createLock();
+  let b = block('a', 9, 10);
+  // First tap: the Sheet saves the block, but the reply never reaches the phone.
+  const lostAfterSaving = async (u, o) => {
+    await sheet.fetchFn(u, o);
+    throw new Error('reply lost');
+  };
+  const first = await runSync(base({ blocks: [b], fetchFn: lostAfterSaving, lock: lock }));
+  assert.equal(first.status, 'failed');
+  b = markAttempted(b, 1); // what onAttempt saves in the app
+  // The block is edited before the retry.
+  b = editBlock(b, { end_epoch: t(10, 30) });
+  assert.equal(b.version, 2);
+  const retry = await runSync(base({ blocks: [b], fetchFn: sheet.fetchFn, lock: lock }));
+  assert.equal(retry.status, 'ok');
+  const last = sheet.calls[sheet.calls.length - 1];
+  assert.equal(last.rows[0].version, 2);
+  assert.equal(last.rows[0].end_epoch, t(10, 30));
+  assert.equal(sheet.held.has('a:2:0'), true, 'the edit is in the Sheet as version 2');
 });
 
 // ---------------------------------------------------------------- the lock (log D56)

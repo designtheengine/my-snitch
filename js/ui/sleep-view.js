@@ -95,6 +95,8 @@ export async function openSleepCheck(ctx, root, data) {
   const existing = await existingBlocks(ctx.db, night);
   const shared = makeShared(await getCategories(ctx.db), usageCounts(allBlocks), await getAllLabels(ctx.db));
   const tz = ctx.tzOffsetMin();
+  // History and Home open this screen to edit an older night, and Later, Looks right and Discard return there.
+  const back = data && data.back ? data.back : 'home';
 
   const clock = (epoch) => {
     const sameDay = localDate(epoch, tz) === localDate(ctx.nowEpoch(), tz);
@@ -279,7 +281,7 @@ export async function openSleepCheck(ctx, root, data) {
       update();
       return;
     }
-    await ctx.show('home');
+    await ctx.show(back);
   }
 
   async function discard() {
@@ -294,7 +296,7 @@ export async function openSleepCheck(ctx, root, data) {
       ctx.warn('Could not discard the night. Nothing was changed.');
       return;
     }
-    await ctx.show('home');
+    await ctx.show(back);
   }
 
   const discardBtn = el('button', { type: 'button', class: 'btn btn-text', onclick: () => discard() }, 'Discard this night');
@@ -315,7 +317,7 @@ export async function openSleepCheck(ctx, root, data) {
   ]);
 
   root.append(
-    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: 'Last night' })]),
+    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: data && data.back ? 'Edit night' : 'Last night' })]),
     section(1, 'Went to bed', [
       night.auto_closed ? el('p', { class: 'muted', text: 'Bed was not logged, so the day closed at 4:00 am. Change the time if you slept earlier.' }) : null,
       el('div', { class: 'chip-row' }, [bedText, changeBtn(bedPicker)]),
@@ -331,7 +333,7 @@ export async function openSleepCheck(ctx, root, data) {
     sumLine,
     msg,
     el('div', { class: 'btn-row' }, [
-      el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('home') }, 'Later'),
+      el('button', { type: 'button', class: 'btn', onclick: () => ctx.show(back) }, data && data.back ? 'Cancel' : 'Later'),
       okBtn
     ]),
     el('div', { class: 'discard' }, [discardBtn])

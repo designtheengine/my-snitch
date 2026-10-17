@@ -5,7 +5,7 @@
 // new indexes, new fields. An upgrade step never deletes a store or a field.
 
 import { bumpLabel } from './labels.js';
-import { markSynced } from './model.js';
+import { markSynced, markAttempted } from './model.js';
 import { syncLock } from './sync.js';
 
 export const DB_NAME = 'mysnitch';
@@ -232,6 +232,24 @@ export function applySwitch(db, stopResult, nextBlock, opts) {
       ? nextBlock.lines.concat(stopResult.block.lines)
       : nextBlock.lines;
     bumpLabelsIn(tx, counted, nowEpoch);
+  });
+}
+
+// Just before a sync sends blocks (log Q17). sending is [{block_id, version}]. Each block gets a note of the
+// highest version a sync has tried to send, whether or not the Sheet confirms it. If the reply is lost and the
+// block is edited or deleted before the retry, model.js gives it a new version so the Sheet cannot skip it.
+// Like markDelivered, this write is not checked against the lock, because the sync holds the lock.
+export function markAttemptedBlocks(db, sending) {
+  return writeTx(db, 'blocks', (tx) => {
+    const store = tx.objectStore('blocks');
+    for (const s of sending) {
+      const read = store.get(s.block_id);
+      read.onsuccess = () => {
+        if (!read.result) return;
+        const next = markAttempted(read.result, s.version);
+        if (next !== read.result) store.put(next);
+      };
+    }
   });
 }
 

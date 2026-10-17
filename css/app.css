@@ -611,3 +611,19 @@ h1, h2, p { margin: 0; }
 #connect .btn-row { margin-top: var(--space-2); padding-bottom: var(--space-4); }
 #connect .btn-row .btn:not(.btn-primary) { background: transparent; border-color: transparent; color: var(--text-muted); }
 .key-link { margin-top: var(--space-2); min-height: 36px; font-size: 13px; padding: 0; }
+
+/* ---------------------------------------------------------------- history and tappable rows (Phase 7) */
+
+.list-head { display: flex; align-items: baseline; justify-content: space-between; }
+.list-head .key-link { margin-top: 0; }
+.row-tap { cursor: pointer; }
+.row-tap:active { background: var(--banner-bg); }
+.row-tap:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+#history { font-size: 15px; }
+#history .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-3); border-bottom: 1px solid var(--border); }
+#history .title { font-size: 22px; }
+#history .day-head { display: flex; align-items: baseline; justify-content: space-between; margin-top: var(--space-4); }
+#history .day-head .section-label { margin: var(--space-3) 0 var(--space-2); }
+#history .more-days { margin-top: var(--space-4); border: 1px dashed var(--accent); color: var(--accent); background: transparent; min-height: 44px; }
+#history .empty { margin-top: var(--space-3); }

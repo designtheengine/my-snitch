@@ -3,12 +3,15 @@
 // now unless you set it, and a block can be split into several activity lines.
 // The rules (overlap, fill around, split math) live in model.js. This file only draws and reacts.
 //
-// data: {shared, blocks, running, gap}
+// data: {shared, blocks, running, gap, edit, back}
 //   gap is {start, end, toNow} when the gap banner opened the form, or null.
+//   edit is a saved block when the form opens in edit mode (Phase 7), or null. Everything is filled in from
+//   it, the chips are hidden, and Save changes that block instead of making a new one. A Delete button appears.
+//   back is the screen to return to after Save, Cancel or Delete: 'home' (default) or 'history'.
 
 import { el, clear, section } from './dom.js';
-import { saveBlocks, getAllBlocks } from '../db.js';
-import { createBlock, planLateSave, lastEndedBlock } from '../model.js';
+import { saveBlocks, saveBlock, removeBlock, getAllBlocks } from '../db.js';
+import { createBlock, planLateSave, planEditSave, deleteBlock, lastEndedBlock } from '../model.js';
 import { formatDuration, formatClock12, localDate, minutesAgo } from '../time.js';
 import { makeLines } from './lines.js';
 import { makeTimePicker } from './timepick.js';
@@ -18,6 +21,8 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 export function openLate(ctx, root, data) {
   const shared = data.shared;
   const gap = data.gap;
+  const edit = data.edit || null;
+  const back = data.back || 'home';
   const tz = ctx.tzOffsetMin();
   const last = lastEndedBlock(data.blocks);
 
@@ -233,6 +238,10 @@ export function openLate(ctx, root, data) {
       const lineData = linesUi.getLines();
       // Read every block again, so a stale screen can never save over a change made meanwhile.
       const fresh = await getAllBlocks(ctx.db);
+      if (edit) {
+        await saveEdit(lineData, fresh, now, d);
+        return;
+      }
       const candidate = createBlock({
         block_id: ctx.newId(),
         start_epoch: d.start,
@@ -266,6 +275,81 @@ export function openLate(ctx, root, data) {
     }
   }
 
+  // Edit mode (Phase 7). Works out what changing the saved block will do, then saves it, or asks first when
+  // it runs into other blocks. The edited block keeps its identity, so a synced block gets a new version.
+  async function saveEdit(lineData, fresh, now, d) {
+    const current = fresh.find((b) => b.block_id === edit.block_id);
+    if (!current || current.is_deleted) {
+      ctx.warn('That block is no longer there.');
+      await ctx.show(back);
+      return;
+    }
+    const plan = planEditSave(current, { start_epoch: d.start, end_epoch: d.end, lines: lineData }, fresh, now, {
+      makeId: () => ctx.newId(),
+      dayFor: (epoch) => ctx.dayFor(epoch)
+    });
+    if (plan.unchanged) {
+      await ctx.show(back);
+      return;
+    }
+    if (plan.refused) {
+      setMsg(refusalText(plan.refused, now));
+      setBusy(false);
+      return;
+    }
+    if (!plan.edited) {
+      setMsg('Everything between those times is already logged.');
+      setBusy(false);
+      return;
+    }
+    // The same shape as a late plan, so the confirmation box and commit work for both. The labels are counted
+    // for suggestions only when the activities changed, so fixing a time never inflates a label's count.
+    const same = (a, b) => JSON.stringify(a.map((l) => [l.category, l.label, l.share_pct])) === JSON.stringify(b.map((l) => [l.category, l.label, l.share_pct]));
+    const view = { swallowed: plan.swallowed, trims: plan.trims, newBlocks: [plan.edited].concat(plan.newBlocks), bump: !same(lineData, current.lines) };
+    if (view.trims.length > 0 || view.swallowed.length > 0) {
+      showConfirm(view, now);
+      setBusy(false);
+      return;
+    }
+    await commit(view);
+  }
+
+  // Delete needs two taps. A block never sent is removed. A block the Sheet holds gets a deletion version,
+  // and the original rows stay in raw (PRD section 7).
+  let deleteArmed = false;
+  const deleteNote = el('p', { class: 'muted msg' });
+  const deleteBtn = el('button', { type: 'button', class: 'btn btn-text', onclick: () => removeThis() }, 'Delete this block');
+
+  async function removeThis() {
+    if (busy) return;
+    if (!deleteArmed) {
+      deleteArmed = true;
+      deleteBtn.textContent = 'Tap again to delete this block';
+      const inSheet = edit.synced_version >= 1 || (edit.attempted_version || 0) >= 1;
+      deleteNote.textContent = inSheet
+        ? 'The Sheet may already hold this block. A deletion is sent on the next sync, and the original rows stay in raw.'
+        : 'It was never sent, so it is removed from this phone and nothing goes to the Sheet.';
+      return;
+    }
+    busy = true;
+    try {
+      const fresh = (await getAllBlocks(ctx.db)).find((b) => b.block_id === edit.block_id);
+      if (fresh) {
+        const res = deleteBlock(fresh);
+        if (res.action === 'remove') await removeBlock(ctx.db, res.block_id);
+        else if (res.action === 'update') await saveBlock(ctx.db, res.block, { now: ctx.nowEpoch(), bumpLabels: false });
+      }
+    } catch (err) {
+      ctx.warn('Could not delete. Nothing was changed. Try again.');
+      busy = false;
+      deleteArmed = false;
+      deleteBtn.textContent = 'Delete this block';
+      deleteNote.textContent = '';
+      return;
+    }
+    await ctx.show(back);
+  }
+
   // Saves the trimmed older blocks and the new blocks in one step: all of it, or none of it.
   async function commit(plan) {
     busy = true;
@@ -273,7 +357,7 @@ export function openLate(ctx, root, data) {
     try {
       const items = plan.trims
         .map((t) => ({ block: t.trimmed, bumpLabels: false }))
-        .concat(plan.newBlocks.map((b) => ({ block: b })));
+        .concat(plan.newBlocks.map((b) => ({ block: b, bumpLabels: plan.bump !== false })));
       await saveBlocks(ctx.db, items, { now: ctx.nowEpoch() });
     } catch (err) {
       ctx.warn('Could not save. Nothing was changed. Try again.');
@@ -282,7 +366,7 @@ export function openLate(ctx, root, data) {
       updateSave();
       return;
     }
-    await ctx.show('home');
+    await ctx.show(back);
   }
 
   // ------------------------------------------------------------ opening state and layout
@@ -297,22 +381,37 @@ export function openLate(ctx, root, data) {
     }
   }
 
+  // Edit mode starts from the saved block. Both times use the exact wheels, which keep the saved seconds until
+  // a wheel is touched, so saving an untouched time never moves it. The chips do not fit here and are hidden.
+  if (edit) {
+    startSpec = { kind: 'exact' };
+    startPicker.setEpoch(edit.start_epoch);
+    endSpec = { kind: 'exact' };
+    endPicker.setEpoch(edit.end_epoch);
+    linesUi.prefillAll(edit.lines);
+  }
+
   renderStartChips();
   renderEndChips();
+  if (edit) {
+    startRow.hidden = true;
+    endRow.hidden = true;
+  }
   updateSummary();
   linesUi.refresh();
   updateSave();
 
   root.append(
-    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: 'Missed something' })]),
+    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: edit ? 'Edit block' : 'Missed something' })]),
     section(1, 'Started', [startRow, startPicker.node]),
     section(2, 'Ended', [endRow, endPicker.node, summary]),
     section(3, 'What you did', [linesUi.node, linesUi.splitBtn]),
     msg,
     confirmBox,
     el('div', { class: 'btn-row' }, [
-      el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('home') }, 'Cancel'),
+      el('button', { type: 'button', class: 'btn', onclick: () => ctx.show(back) }, 'Cancel'),
       saveBtn
-    ])
+    ]),
+    ...(edit ? [el('div', { class: 'discard' }, [deleteBtn, deleteNote])] : [])
   );
 }

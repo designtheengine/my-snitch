@@ -14,7 +14,8 @@ import {
   getAllBlocks,
   saveNight,
   setSetting,
-  markDelivered
+  markDelivered,
+  markAttemptedBlocks
 } from './db.js';
 import { reportingDay, dayGaps } from './time.js';
 import { wakesFrom, latestWake, heldBlockIds, openNight, unreviewedNight, planAutoClose } from './sleep.js';
@@ -22,16 +23,18 @@ import { drawHome, stopTicker } from './ui/home.js';
 import { openEntry } from './ui/entry.js';
 import { openSleepCheck } from './ui/sleep-view.js';
 import { openConnect } from './ui/connect.js';
+import { openHistory } from './ui/history.js';
 import { runSync, syncLock, friendlyError, DEFAULT_SCRIPT_URL } from './sync.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v17';
+export const APP_VERSION = 'v18';
 
 const panels = {
   home: document.getElementById('home'),
   entry: document.getElementById('entry'),
   sleep: document.getElementById('sleep'),
-  connect: document.getElementById('connect')
+  connect: document.getElementById('connect'),
+  history: document.getElementById('history')
 };
 const warnEl = document.getElementById('warn');
 
@@ -92,8 +95,10 @@ async function loadState(db) {
   ]);
   // Blocks still running are never synced, so they are not in the list. Neither are the blocks of a
   // night whose wake is not logged yet: they wait until the day they count toward is known.
+  // A deleted block that the Sheet holds stays in the list until its deletion is sent (Phase 7), so the
+  // unsynced count is honest. It shows a "deleted" tag and cannot be tapped.
   const unsynced = dirty
-    .filter((b) => b.running !== 1 && b.end_epoch !== null && !b.is_deleted && !held.has(b.block_id))
+    .filter((b) => b.running !== 1 && b.end_epoch !== null && !held.has(b.block_id))
     .sort((a, b) => b.start_epoch - a.start_epoch);
   // The gap banner reads today's blocks plus the running one, which may have started on an earlier day.
   const gapBlocks = running && !dayBlocks.some((b) => b.block_id === running.block_id) ? dayBlocks.concat([running]) : dayBlocks;
@@ -131,6 +136,7 @@ async function show(name, arg) {
     else if (name === 'entry') await openEntry(ctx, arg || 'start');
     else if (name === 'sleep') await openSleepCheck(ctx, panels.sleep, arg);
     else if (name === 'connect') await openConnect(ctx, panels.connect);
+    else if (name === 'history') await openHistory(ctx, panels.history, arg);
   } catch (err) {
     console.error(err);
     warn('Something went wrong reading your saved data.');
@@ -165,7 +171,8 @@ async function doSync() {
       key: key,
       appVersion: APP_VERSION,
       syncId: 's-' + newId(),
-      fetchFn: (u, o) => fetch(u, o)
+      fetchFn: (u, o) => fetch(u, o),
+      onAttempt: (sending) => markAttemptedBlocks(db, sending)
     });
     if (result.delivered.length > 0) await markDelivered(db, result.delivered);
     if (result.status === 'ok') await setSetting(db, 'last_synced_at', nowEpoch());
