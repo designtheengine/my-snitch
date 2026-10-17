@@ -10,7 +10,8 @@
 
 import { el, clear } from './dom.js';
 import { getAllBlocks } from '../db.js';
-import { formatDuration, localDate } from '../time.js';
+import { formatDuration, localDate, addDays, epochFromLocal } from '../time.js';
+import { newNight, updateNight } from '../sleep.js';
 import { entryRow } from './home.js';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -25,6 +26,20 @@ export function dayTitle(day) {
   const p = day.split('-').map(Number);
   const weekday = WEEKDAYS[new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay()];
   return weekday + ' ' + p[2] + ' ' + MONTHS[p[1] - 1] + ' ' + p[0];
+}
+
+// A night nobody logged. It starts as a draft: bed at 11:00 pm two days ago, wake at 7:00 am yesterday. The sleep
+// screen opens on it, and nothing is saved until Looks right (decided 17 Oct 2026, Q16 option a).
+function startMissedNight(ctx) {
+  const tz = ctx.tzOffsetMin();
+  const today = localDate(ctx.nowEpoch(), tz);
+  const bed = epochFromLocal(addDays(today, -2), 23, 0, 0, tz);
+  const wake = epochFromLocal(addDays(today, -1), 7, 0, 0, tz);
+  const draft = updateNight(newNight({ bedEpoch: bed, offsetMin: tz, autoClosed: false, makeId: ctx.newId }), {
+    wake_epoch: wake,
+    wake_offset_min: tz
+  });
+  ctx.show('sleep', { draft: draft, back: 'history' });
 }
 
 export async function openHistory(ctx, root, data) {
@@ -81,6 +96,7 @@ export async function openHistory(ctx, root, data) {
       el('h2', { class: 'title', text: 'History' }),
       el('button', { type: 'button', class: 'btn btn-text', onclick: () => ctx.show('home') }, 'Back')
     ]),
+    el('button', { type: 'button', class: 'btn btn-wide', onclick: () => startMissedNight(ctx) }, 'Add a missed night'),
     el('p', { class: 'muted', text: 'Blocks the Sheet already holds. Tap one to edit or delete it. The original rows stay in the Sheet.' }),
     ...body
   );

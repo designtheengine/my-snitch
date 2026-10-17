@@ -83,7 +83,10 @@ export async function sleepTap(ctx, kind) {
 
 export async function openSleepCheck(ctx, root, data) {
   clear(root);
-  const night = data && data.nightId ? await getSleep(ctx.db, data.nightId) : null;
+  // A draft is a night that is not saved yet (Add a missed night in History). It has no blocks, and nothing
+  // reaches storage until Looks right.
+  const draft = data && data.draft ? data.draft : null;
+  const night = draft || (data && data.nightId ? await getSleep(ctx.db, data.nightId) : null);
   // pendingWake is the moment of a late Woke up tap. It is not saved until Looks right.
   const pendingWake = data && Number.isInteger(data.pendingWake) ? data.pendingWake : null;
   if (!night || (night.wake_epoch === null && pendingWake === null)) {
@@ -92,7 +95,7 @@ export async function openSleepCheck(ctx, root, data) {
   }
   const allBlocks = await getAllBlocks(ctx.db);
   const allNights = await getAllSleep(ctx.db);
-  const existing = await existingBlocks(ctx.db, night);
+  const existing = draft ? {} : await existingBlocks(ctx.db, night);
   const shared = makeShared(await getCategories(ctx.db), usageCounts(allBlocks), await getAllLabels(ctx.db));
   const tz = ctx.tzOffsetMin();
   // History and Home open this screen to edit an older night, and Later, Looks right and Discard return there.
@@ -317,7 +320,7 @@ export async function openSleepCheck(ctx, root, data) {
   ]);
 
   root.append(
-    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: data && data.back ? 'Edit night' : 'Last night' })]),
+    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: draft ? 'Add a missed night' : data && data.back ? 'Edit night' : 'Last night' })]),
     section(1, 'Went to bed', [
       night.auto_closed ? el('p', { class: 'muted', text: 'Bed was not logged, so the day closed at 4:00 am. Change the time if you slept earlier.' }) : null,
       el('div', { class: 'chip-row' }, [bedText, changeBtn(bedPicker)]),
@@ -336,7 +339,7 @@ export async function openSleepCheck(ctx, root, data) {
       el('button', { type: 'button', class: 'btn', onclick: () => ctx.show(back) }, data && data.back ? 'Cancel' : 'Later'),
       okBtn
     ]),
-    el('div', { class: 'discard' }, [discardBtn])
+    draft ? null : el('div', { class: 'discard' }, [discardBtn])
   );
   built = true;
   drawChips();

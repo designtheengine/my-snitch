@@ -334,3 +334,38 @@ test('isLongNight: over 16 hours from bed to wake, and never without a wake', ()
   assert.equal(isLongNight(updateNight(x, { wake_epoch: x.bed_epoch + 16 * 3600, wake_offset_min: IST })), false);
   assert.equal(isLongNight(updateNight(x, { wake_epoch: x.bed_epoch + 16 * 3600 + 1, wake_offset_min: IST })), true);
 });
+
+// ---------------------------------------------------------------- a missed night (v19)
+
+test('a draft night saved with no stored blocks creates both blocks and re-dates a later ordinary block', () => {
+  n = 0;
+  const draft = updateNight(
+    newNight({ bedEpoch: t(23, 0, 0, '2026-10-10'), offsetMin: IST, autoClosed: false, makeId }),
+    { wake_epoch: t(7, 0, 0, '2026-10-11'), wake_offset_min: IST }
+  );
+  // An ordinary block at 9 am on 11 Oct that was filed under the 10th, because no wake existed yet.
+  const later = createBlock({ block_id: 'late1', start_epoch: t(9, 0, 0, '2026-10-11'), end_epoch: t(10, 0, 0, '2026-10-11'),
+    tz_offset_min: IST, day: '2026-10-10', lines: [{ category: 'admin', label: 'x', share_pct: 100 }], entry_mode: 'late', now: t(10, 0, 0, '2026-10-11') });
+  const plan = withReday(
+    planChange(draft, { asleep_epoch: draft.bed_epoch + 600, reviewed: true }, {}, t(12, 0, 0, '2026-10-12')),
+    [], [later]
+  );
+  assert.equal(plan.error, undefined);
+  assert.equal(plan.save.filter((b) => b.entry_mode === 'sleep').length, 2);
+  assert.equal(plan.night.day, '2026-10-11');
+  const moved = plan.save.find((b) => b.block_id === 'late1');
+  assert.ok(moved);
+  assert.equal(moved.day, '2026-10-11');
+  assert.equal(nightConflict(draft, [later], t(12, 0, 0, '2026-10-12')), null);
+});
+
+test('a draft night that runs into a logged block is flagged', () => {
+  n = 0;
+  const draft = updateNight(
+    newNight({ bedEpoch: t(23, 0, 0, '2026-10-10'), offsetMin: IST, autoClosed: false, makeId }),
+    { wake_epoch: t(7, 0, 0, '2026-10-11'), wake_offset_min: IST }
+  );
+  const clash = createBlock({ block_id: 'c1', start_epoch: t(1, 0, 0, '2026-10-11'), end_epoch: t(2, 0, 0, '2026-10-11'),
+    tz_offset_min: IST, day: '2026-10-10', lines: [{ category: 'admin', label: 'x', share_pct: 100 }], entry_mode: 'late', now: t(2, 0, 0, '2026-10-11') });
+  assert.equal(nightConflict(draft, [clash], t(12, 0, 0, '2026-10-12')).block_id, 'c1');
+});
