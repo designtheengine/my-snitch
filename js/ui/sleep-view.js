@@ -339,7 +339,7 @@ export async function openSleepCheck(ctx, root, data) {
       el('button', { type: 'button', class: 'btn', onclick: () => ctx.show(back) }, data && data.back ? 'Cancel' : 'Later'),
       okBtn
     ]),
-    draft ? null : el('div', { class: 'discard' }, [discardBtn])
+    ...(draft ? [] : [el('div', { class: 'discard' }, [discardBtn])])
   );
   built = true;
   drawChips();

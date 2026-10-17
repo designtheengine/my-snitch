@@ -27,7 +27,7 @@ import { openHistory } from './ui/history.js';
 import { runSync, syncLock, friendlyError, DEFAULT_SCRIPT_URL } from './sync.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v19';
+export const APP_VERSION = 'v20';
 
 const panels = {
   home: document.getElementById('home'),
