@@ -108,8 +108,8 @@ h1, h2, p { margin: 0; }
 
 /* Layered waves behind the top of every screen (chosen 18 Oct 2026, widened to all screens in v25).
    The shape is a mask: the accent colour shows through it, so it follows light and dark by itself.
-   The mask holds three layers at 50, 72 and 100 percent, and the colour is faded to about 14 percent,
-   which gives the 7, 10 and 14 percent layers of the mockup. */
+   The mask holds three layers at 35, 65 and 100 percent, and the colour is faded to 32 percent,
+   which gives layers of about 11, 21 and 32 percent (v26, the first try at 7, 10 and 14 was too faint on the phone). */
 .panel { position: relative; }
 .panel > * { position: relative; z-index: 1; }
 .panel::before {
@@ -121,10 +121,10 @@ h1, h2, p { margin: 0; }
   top: 0;
   height: 170px;
   background: var(--accent);
-  opacity: 0.14;
+  opacity: 0.32;
   pointer-events: none;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 170' preserveAspectRatio='none'%3E%3Cpath fill-opacity='0.5' d='M0 0H390V130C320 160 250 100 180 128S50 150 0 122Z'/%3E%3Cpath fill-opacity='0.72' d='M0 0H390V92C330 122 270 62 195 90S60 112 0 82Z'/%3E%3Cpath fill-opacity='1' d='M0 0H390V54C340 80 280 26 200 52S60 72 0 44Z'/%3E%3C/svg%3E") no-repeat top left / 100% 100%;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 170' preserveAspectRatio='none'%3E%3Cpath fill-opacity='0.5' d='M0 0H390V130C320 160 250 100 180 128S50 150 0 122Z'/%3E%3Cpath fill-opacity='0.72' d='M0 0H390V92C330 122 270 62 195 90S60 112 0 82Z'/%3E%3Cpath fill-opacity='1' d='M0 0H390V54C340 80 280 26 200 52S60 72 0 44Z'/%3E%3C/svg%3E") no-repeat top left / 100% 100%;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 170' preserveAspectRatio='none'%3E%3Cpath fill-opacity='0.35' d='M0 0H390V130C320 160 250 100 180 128S50 150 0 122Z'/%3E%3Cpath fill-opacity='0.65' d='M0 0H390V92C330 122 270 62 195 90S60 112 0 82Z'/%3E%3Cpath fill-opacity='1' d='M0 0H390V54C340 80 280 26 200 52S60 72 0 44Z'/%3E%3C/svg%3E") no-repeat top left / 100% 100%;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 170' preserveAspectRatio='none'%3E%3Cpath fill-opacity='0.35' d='M0 0H390V130C320 160 250 100 180 128S50 150 0 122Z'/%3E%3Cpath fill-opacity='0.65' d='M0 0H390V92C330 122 270 62 195 90S60 112 0 82Z'/%3E%3Cpath fill-opacity='1' d='M0 0H390V54C340 80 280 26 200 52S60 72 0 44Z'/%3E%3C/svg%3E") no-repeat top left / 100% 100%;
 }
 
 .card-heading {
