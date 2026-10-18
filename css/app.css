@@ -238,6 +238,11 @@ h1, h2, p { margin: 0; }
   background: var(--card);
 }
 .seg .btn {
+  /* Each segment is as wide as its own text, and never wraps (I29, v30). Before, all
+     segments were the same width, which squeezed "Follow phone" onto two lines. */
+  flex: 1 1 auto;
+  white-space: nowrap;
+  padding: 0 var(--space-2);
   min-height: 36px;
   border: 0;
   border-radius: 9px;
@@ -249,6 +254,28 @@ h1, h2, p { margin: 0; }
 
 /* Settings: the two Export buttons are quieter than the rest. */
 .btn-export { min-height: 36px; font-size: var(--text-small); }
+
+/* Bigger tap areas for the small controls (v30). Each of these is drawn smaller than the 44 point
+   size Apple recommends, by choice (D83, D85). An invisible layer around the control makes the
+   area that reacts to a finger 44 points tall, and the look does not change. The layer is sized
+   directly (44px tall, centred on the control), because an offset such as -4px is measured from
+   inside the control's border and came out at 42px in the first try. The round buttons and the
+   colour squares get 44px both ways. The pill, the Export buttons and the segments get 44px
+   in height only, so they never reach sideways into the control next to them. */
+.icon-btn, .btn-sleep, .seg .btn, .btn-export, #settings .swatch { position: relative; }
+.icon-btn::after, #settings .swatch::after {
+  content: ''; position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%);
+}
+.btn-sleep::after, .btn-export::after {
+  content: ''; position: absolute; top: 50%; left: -1px; right: -1px; height: 44px; transform: translateY(-50%);
+}
+.seg .btn::after {
+  content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%);
+}
+
+/* A message line with nothing in it takes no room. Settings cards space their items with a gap,
+   so an empty line used to add about 20px above the Save key button (I29, v30). */
+.msg:empty { display: none; }
 
 /* ---------------------------------------------------------------- category dot and chips */
 
