@@ -22,18 +22,19 @@ import { wakesFrom, latestWake, heldBlockIds, openNight, unreviewedNight, planAu
 import { drawHome, stopTicker } from './ui/home.js';
 import { openEntry } from './ui/entry.js';
 import { openSleepCheck } from './ui/sleep-view.js';
-import { openConnect } from './ui/connect.js';
+import { openSettings } from './ui/settings.js';
 import { openHistory } from './ui/history.js';
 import { runSync, syncLock, friendlyError, DEFAULT_SCRIPT_URL } from './sync.js';
+import { addEntry } from './errorlog.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v20';
+export const APP_VERSION = 'v21';
 
 const panels = {
   home: document.getElementById('home'),
   entry: document.getElementById('entry'),
   sleep: document.getElementById('sleep'),
-  connect: document.getElementById('connect'),
+  settings: document.getElementById('settings'),
   history: document.getElementById('history')
 };
 const warnEl = document.getElementById('warn');
@@ -69,7 +70,22 @@ function dayFor(startEpoch) {
   return reportingDay(startEpoch, tzOffsetMin(), wakes);
 }
 
+// The local error log (spec section 12). The last 50 problems are kept in the settings store, so
+// Settings can copy them. Callers pass fixed sentences and short codes, never the key. A failure to
+// write the log is ignored, because the log must never cause a problem of its own.
+let dbRef = null;
+async function logEvent(kind, text) {
+  if (!dbRef) return;
+  try {
+    const list = (await getSetting(dbRef, 'error_log')) || [];
+    await setSetting(dbRef, 'error_log', addEntry(list, { t: nowEpoch(), kind: kind, text: text }));
+  } catch (err) {
+    // nothing to do
+  }
+}
+
 function warn(message) {
+  logEvent('warning', message);
   warnEl.textContent = message + ' (tap to hide)';
   warnEl.hidden = false;
 }
@@ -135,10 +151,11 @@ async function show(name, arg) {
     if (name === 'home') await refresh();
     else if (name === 'entry') await openEntry(ctx, arg || 'start');
     else if (name === 'sleep') await openSleepCheck(ctx, panels.sleep, arg);
-    else if (name === 'connect') await openConnect(ctx, panels.connect);
+    else if (name === 'settings') await openSettings(ctx, panels.settings);
     else if (name === 'history') await openHistory(ctx, panels.history, arg);
   } catch (err) {
     console.error(err);
+    logEvent('screen', 'could not open ' + name + ': ' + (err && err.message ? err.message : 'unknown'));
     warn('Something went wrong reading your saved data.');
   }
   window.scrollTo(0, 0);
@@ -155,7 +172,7 @@ async function doSync() {
   const db = ctx.db;
   const key = await getSetting(db, 'secret_key');
   if (!key) {
-    await show('connect');
+    await show('settings');
     return;
   }
   syncing = true;
@@ -178,9 +195,13 @@ async function doSync() {
     if (result.status === 'ok') await setSetting(db, 'last_synced_at', nowEpoch());
     if (result.status === 'nothing') syncNote = 'Nothing to sync.';
     else if (result.status === 'ok') syncNote = 'Synced ' + result.blockCount + (result.blockCount === 1 ? ' block.' : ' blocks.');
-    else syncNote = friendlyError(result.error);
+    else {
+      syncNote = friendlyError(result.error);
+      logEvent('sync', 'failed: ' + result.error);
+    }
   } catch (err) {
     console.error(err);
+    logEvent('sync', 'stopped: ' + (err && err.message ? err.message : 'unknown'));
     syncNote = 'The sync stopped. Nothing was lost. Try again.';
   } finally {
     syncLock.release();
@@ -189,7 +210,7 @@ async function doSync() {
   await refresh();
 }
 
-// The theme follows the phone unless Settings forces light or dark (Settings arrives in Phase 8).
+// The theme follows the phone unless Settings forces light or dark (built in Phase 8).
 async function applyTheme(db) {
   const theme = await getSetting(db, 'theme');
   if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
@@ -209,6 +230,7 @@ async function autoClose(db) {
     });
     if (plan) await saveNight(db, plan);
   } catch (err) {
+    logEvent('auto-close', err && err.message ? err.message : 'unknown');
     warn('Could not close yesterday at 4:00 am. Nothing was changed.');
   }
 }
@@ -216,6 +238,7 @@ async function autoClose(db) {
 async function boot() {
   try {
     const db = await openDb();
+    dbRef = db;
     await seedCategories(db, nowEpoch());
     ctx = {
       db: db,
@@ -230,7 +253,8 @@ async function boot() {
       show: show,
       refresh: refresh,
       sync: doSync,
-      setSyncNote: setSyncNote
+      setSyncNote: setSyncNote,
+      applyTheme: () => applyTheme(db)
     };
     await applyTheme(db);
     await autoClose(db);
@@ -265,6 +289,14 @@ document.addEventListener('touchcancel', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden || !ctx) return;
   if (current === 'home') autoClose(ctx.db).then(() => refresh()).catch(() => {});
+});
+
+// Problems nobody caught go into the error log too, so Copy log can show them.
+window.addEventListener('error', (e) => {
+  logEvent('error', (e && e.message ? e.message : 'unknown') + (e && e.lineno ? ' (line ' + e.lineno + ')' : ''));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  logEvent('error', 'unhandled: ' + (e && e.reason && e.reason.message ? e.reason.message : 'unknown'));
 });
 
 boot();

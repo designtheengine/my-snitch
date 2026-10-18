@@ -604,12 +604,12 @@ h1, h2, p { margin: 0; }
 .btn-text { background: transparent; border-color: transparent; color: var(--text-muted); }
 .discard { text-align: center; padding-bottom: var(--space-4); }
 
-/* ---------------------------------------------------------------- sheet connection (Phase 6) */
-#connect { font-size: 15px; }
-#connect .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
-#connect .title { font-size: 22px; }
-#connect .btn-row { margin-top: var(--space-2); padding-bottom: var(--space-4); }
-#connect .btn-row .btn:not(.btn-primary) { background: transparent; border-color: transparent; color: var(--text-muted); }
+/* ---------------------------------------------------------------- settings (Phase 8, replaces the connection screen) */
+#settings { font-size: 15px; }
+#settings .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+#settings .title { font-size: 22px; }
+#settings .sect-body .btn-row { margin-top: var(--space-2); }
+#settings .log-box { width: 100%; margin-top: var(--space-2); font-size: 13px; }
 .key-link { margin-top: var(--space-2); min-height: 36px; font-size: 13px; padding: 0; }
 
 /* ---------------------------------------------------------------- history and tappable rows (Phase 7) */

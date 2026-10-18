@@ -126,7 +126,7 @@ function reviewBanner(ctx) {
 }
 
 // The sync bar (PRD section 8). The button is Set up until the key is saved on this phone, then Sync.
-// A line under it tells you what the last tap did. Change key opens the small connection screen.
+// A line under it tells you what the last tap did. Change key opens Settings, where the key lives since Phase 8.
 function syncBar(ctx) {
   const last = ctx.state.lastSyncedAt;
   const lastText = last ? formatClock12(last, ctx.tzOffsetMin()) : 'never';
@@ -143,7 +143,7 @@ function syncBar(ctx) {
       el('button', { type: 'button', class: 'btn' + (hasKey ? ' btn-primary' : ''), disabled: busy, onclick: () => ctx.sync() }, busy ? 'Syncing' : hasKey ? 'Sync' : 'Set up')
     ]),
     ...(note ? [el('div', { class: 'muted msg', text: note })] : []),
-    ...(hasKey ? [el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('connect') }, 'Change key')] : [])
+    ...(hasKey ? [el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('settings') }, 'Change key')] : [])
   ]);
 }
 
@@ -219,7 +219,10 @@ export function drawHome(ctx) {
     ...(banner ? [banner] : []),
     syncBar(ctx),
     unsyncedList(ctx),
-    el('p', { class: 'muted foot', text: 'app ' + ctx.version })
+    el('div', { class: 'foot' }, [
+      el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('settings') }, 'Settings'),
+      el('p', { class: 'muted', text: 'app ' + ctx.version })
+    ])
   );
   if (ctx.state.running) startTicker(ctx);
 }
