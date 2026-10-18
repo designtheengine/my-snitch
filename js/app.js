@@ -29,7 +29,7 @@ import { addEntry } from './errorlog.js';
 import { staleUnsynced, longTimer } from './safeguards.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v33';
+export const APP_VERSION = 'v34';
 
 const panels = {
   home: document.getElementById('home'),
@@ -97,13 +97,16 @@ warnEl.addEventListener('click', () => {
 
 // The header row of each screen is frozen at the top (v32). The CSS puts a solid background behind it that
 // fades in as you scroll (v33): --head-fade runs from 0 at the top to 1 after HEAD_FADE_PX pixels.
-const HEAD_FADE_PX = 60;
+const HEAD_FADE_PX = 110;
 function markScrolled() {
   const page = document.documentElement;
   // A screen too short to scroll never shows the solid bar, even if the phone bounces the page.
   const scrollable = page.scrollHeight - window.innerHeight > 2;
   const fade = scrollable ? Math.min(1, Math.max(0, window.scrollY / HEAD_FADE_PX)) : 0;
   page.style.setProperty('--head-fade', fade.toFixed(2));
+  // The row only sticks once the page has really scrolled (v34). While the page is at the top, or pulled
+  // down past the top by the phone's bounce, it is an ordinary row and moves together with the content.
+  page.classList.toggle('head-stuck', scrollable && window.scrollY > 0);
 }
 window.addEventListener('scroll', markScrolled, { passive: true });
 window.addEventListener('resize', markScrolled);

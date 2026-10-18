@@ -850,9 +850,13 @@ h1, h2, p { margin: 0; }
    margins of the page. "top: 8px" matches the 8px the row sits below the top edge at rest. The status bar
    style is "default", so the page already starts below the phone's status bar (unproven on the phone). */
 .panel > .head {
+  z-index: 3;
+}
+/* v34: "head-stuck" is set on <html> by js/app.js only while the page is scrolled down. Before that the row
+   is not sticky, so a pull down on a short screen moves it together with the content. */
+.head-stuck .panel > .head {
   position: sticky;
   top: 8px;
-  z-index: 3;
 }
 .panel > .head::before {
   content: '';
