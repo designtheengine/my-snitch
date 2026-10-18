@@ -97,6 +97,17 @@ h1, h2, p { margin: 0; }
   display: block;
 }
 
+/* Light mode shows the blue icon. Dark mode swaps in the white one (v28). The two dark rules
+   match the two in tokens.css: the phone is dark and the app has not forced light, or the app
+   forces dark from Settings. */
+.brand-icon-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-icon-light { display: none; }
+  :root:not([data-theme="light"]) .brand-icon-dark { display: block; }
+}
+:root[data-theme="dark"] .brand-icon-light { display: none; }
+:root[data-theme="dark"] .brand-icon-dark { display: block; }
+
 .brand-wrap .brand {
   margin: 0;
   white-space: nowrap;
