@@ -156,26 +156,30 @@ function reviewBanner(ctx) {
   ]);
 }
 
-// The sync bar (PRD section 8). The button is Set up until the key is saved on this phone, then Sync.
-// A line under it tells you what the last tap did. Change key opens Settings, where the key lives since Phase 8.
-function syncBar(ctx) {
-  const last = ctx.state.lastSyncedAt;
-  const lastText = last ? formatClock12(last, ctx.tzOffsetMin()) : 'never';
-  const count = ctx.state.unsynced.length;
+// The sync tile (v35, replaces the sync card). A narrow icon tile beside Missed something. It is solid blue
+// once a key is saved, and opens Settings until then (the same job "Set up" did). While a sync runs the
+// icon turns. The note about the last tap sits as one small line under the two tiles. The count and the
+// last sync time moved into the Unsynced heading, and Change key lives in Settings only.
+const SYNC_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.2L4 9"/><path d="M4 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 4.2L20 15"/><path d="M20 20v-5h-5"/></svg>';
+
+function syncRow(ctx) {
   const hasKey = ctx.state.hasKey;
   const busy = ctx.state.syncing;
+  const label = busy ? 'Syncing' : hasKey ? 'Sync' : 'Set up syncing';
+  const sync = el('button', {
+    type: 'button',
+    class: 'btn sync-tile' + (hasKey ? ' btn-primary' : '') + (busy ? ' spinning' : ''),
+    'aria-label': label,
+    title: label,
+    disabled: busy,
+    onclick: () => ctx.sync()
+  });
+  sync.innerHTML = SYNC_ICON;
   const note = ctx.state.syncNote || (hasKey ? '' : 'Enter your Sheet key to start syncing.');
-  return el('div', { class: 'card' }, [
-    el('div', { class: 'sync-bar' }, [
-      el('div', {}, [
-        el('div', { text: count + ' unsynced' }),
-        el('div', { class: 'muted', text: 'Last synced: ' + lastText })
-      ]),
-      el('button', { type: 'button', class: 'btn' + (hasKey ? ' btn-primary' : ''), disabled: busy, onclick: () => ctx.sync() }, busy ? 'Syncing' : hasKey ? 'Sync' : 'Set up')
-    ]),
-    ...(note ? [el('div', { class: 'muted msg', text: note })] : []),
-    ...(hasKey ? [el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('settings') }, 'Change key')] : [])
-  ]);
+  return [
+    el('div', { class: 'action-row' }, [sync, missedButton(ctx)]),
+    ...(note ? [el('div', { class: 'muted msg sync-note', text: note })] : [])
+  ];
 }
 
 // One row of a block list. Home lists the unsynced blocks and History lists the synced ones, with this same row.
@@ -221,7 +225,7 @@ function unsyncedList(ctx) {
   // The label row carries the way into History, where synced blocks live (decided 17 Oct 2026, D64).
   const wrap = el('div', {}, [
     el('div', { class: 'list-head' }, [
-      el('div', { class: 'section-label', text: 'Unsynced' }),
+      el('div', { class: 'section-label', text: 'Unsynced \u00b7 ' + list.length + ' \u00b7 last synced ' + (ctx.state.lastSyncedAt ? formatClock12(ctx.state.lastSyncedAt, ctx.tzOffsetMin()) : 'never') }),
       el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('history', { fresh: true }) }, 'History')
     ])
   ]);
@@ -271,9 +275,8 @@ export function drawHome(ctx) {
     ...(stale ? [stale] : []),
     ...(longT ? [longT] : []),
     statusCard(ctx),
-    missedButton(ctx),
     ...(banner ? [banner] : []),
-    syncBar(ctx),
+    ...syncRow(ctx),
     unsyncedList(ctx)
   );
   if (ctx.state.running) startTicker(ctx);
