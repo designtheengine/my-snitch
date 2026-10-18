@@ -5,7 +5,7 @@
 // reviewed and fixed. Backing out of the check keeps the wake and leaves a "review" banner on Home.
 // The rules live in sleep.js. This file only draws and reacts.
 
-import { el, clear, section } from './dom.js';
+import { el, clear, section, backButton } from './dom.js';
 import { getAllSleep, getSleep, getBlock, getAllBlocks, getAllLabels, getCategories, getRunningBlock, saveNight } from '../db.js';
 import {
   planBed, planChange, planDiscard, openNight, nightConflict, updateNight, checkNight, isStaleOpenNight,
@@ -320,7 +320,7 @@ export async function openSleepCheck(ctx, root, data) {
   ]);
 
   root.append(
-    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: draft ? 'Add a missed night' : data && data.back ? 'Edit night' : 'Last night' })]),
+    el('div', { class: 'head page-head head-back' }, [backButton(() => ctx.show(back)), el('h2', { class: 'title', text: draft ? 'Add a missed night' : data && data.back ? 'Edit night' : 'Last night' })]),
     section(1, 'Went to bed', [
       night.auto_closed ? el('p', { class: 'muted', text: 'Bed was not logged, so the day closed at 4:00 am. Change the time if you slept earlier.' }) : null,
       el('div', { class: 'chip-row' }, [bedText, changeBtn(bedPicker)]),

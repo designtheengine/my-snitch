@@ -9,7 +9,7 @@
 //   it, the chips are hidden, and Save changes that block instead of making a new one. A Delete button appears.
 //   back is the screen to return to after Save, Cancel or Delete: 'home' (default) or 'history'.
 
-import { el, clear, section } from './dom.js';
+import { el, clear, section, backButton } from './dom.js';
 import { saveBlocks, saveBlock, removeBlock, getAllBlocks } from '../db.js';
 import { createBlock, planLateSave, planEditSave, deleteBlock, lastEndedBlock } from '../model.js';
 import { formatDuration, formatClock12, localDate, minutesAgo } from '../time.js';
@@ -402,7 +402,7 @@ export function openLate(ctx, root, data) {
   updateSave();
 
   root.append(
-    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: edit ? 'Edit block' : 'Missed something' })]),
+    el('div', { class: 'head page-head head-back' }, [backButton(() => ctx.show(back)), el('h2', { class: 'title', text: edit ? 'Edit block' : 'Missed something' })]),
     section(1, 'Started', [startRow, startPicker.node]),
     section(2, 'Ended', [endRow, endPicker.node, summary]),
     section(3, 'What you did', [linesUi.node, linesUi.splitBtn]),

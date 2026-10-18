@@ -1,6 +1,7 @@
 /*
-  my snitch. design tokens (Phase 1, locked 11 Oct 2026)
-  Light: "G1 bright blue range". Dark: "Dark 1 dusk".
+  my snitch. design tokens (Phase 1, locked 11 Oct 2026; repainted in Phase 9, v24, 18 Oct 2026)
+  Light: palette B, the blues kept with warm accents (slots 5, 7, 8, 9).
+  Dark: "Dark 1", raised cards: a deep navy page with lighter cards, strong borders and bright category colours.
   Theme: follows the phone by default. [data-theme="light"] or
   [data-theme="dark"] on <html> overrides it (set from Settings).
   Every colour in the app comes from a variable below. No raw hex in app.css.
@@ -30,11 +31,11 @@
   --cat-2: #1D4ED8; --cat-2-fill: #1D4ED833; --cat-2-line: #1D4ED899;
   --cat-3: #3B82F6; --cat-3-fill: #3B82F633; --cat-3-line: #3B82F699;
   --cat-4: #0EA5E9; --cat-4-fill: #0EA5E933; --cat-4-line: #0EA5E999;
-  --cat-5: #6366F1; --cat-5-fill: #6366F133; --cat-5-line: #6366F199;
+  --cat-5: #E5604D; --cat-5-fill: #E5604D33; --cat-5-line: #E5604D99;
   --cat-6: #312E81; --cat-6-fill: #312E8133; --cat-6-line: #312E8199;
-  --cat-7: #38BDF8; --cat-7-fill: #38BDF833; --cat-7-line: #38BDF899;
-  --cat-8: #93C5FD; --cat-8-fill: #93C5FD33; --cat-8-line: #93C5FD99;
-  --cat-9: #64748B; --cat-9-fill: #64748B33; --cat-9-line: #64748B99;
+  --cat-7: #D98A1B; --cat-7-fill: #D98A1B33; --cat-7-line: #D98A1B99;
+  --cat-8: #14A38B; --cat-8-fill: #14A38B33; --cat-8-line: #14A38B99;
+  --cat-9: #D6336C; --cat-9-fill: #D6336C33; --cat-9-line: #D6336C99;
 
   /* spacing */
   --space-1: 4px;
@@ -44,66 +45,71 @@
   --space-5: 24px;
 
   /* shape */
-  --radius-card: 6px;
-  --radius-button: 5px;
-  --radius-chip: 6px;
-  --hairline: 0.5px;
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --radius-chip: 999px;
+  --hairline: 1px;
   --tap-min: 44px;
-  --dot-size: 11px;
+  --row-min: 42px;
+  --dot-size: 10px;
 
-  /* type: iPhone system font, inputs at 16px or larger so iOS does not zoom */
+  /* type: iPhone system font. One scale for the whole app:
+     title 22, card heading 17, body 15, small 13, section label 12, timer 40.
+     Inputs are 16px, because a smaller text field makes iOS zoom in on tap. */
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --text-label: 12px;
   --text-small: 13px;
   --text-body: 15px;
-  --text-title: 20px;
-  --text-timer: 36px;
-  --text-input: 17px;
+  --text-heading: 17px;
+  --text-title: 22px;
+  --text-timer: 40px;
+  --text-input: 16px;
   --weight-regular: 400;
-  --weight-medium: 500;
+  --weight-medium: 600;
 }
 
 /* Dark: phone is set to dark and the app has not forced light */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0F1622;
-    --card: #161F2E;
-    --text: #CBD5E4;
-    --text-muted: #8392A8;
-    --border: #243044;
-    --accent: #7D9FD6;
-    --on-accent: #0F1622;
-    --banner-bg: #1A2840;
-    --banner-text: #B5C9E6;
-    --cat-1: #4A66B0; --cat-1-fill: #4A66B026; --cat-1-line: #4A66B066;
-    --cat-2: #658CD6; --cat-2-fill: #658CD626; --cat-2-line: #658CD666;
-    --cat-3: #8FAEE6; --cat-3-fill: #8FAEE626; --cat-3-line: #8FAEE666;
-    --cat-4: #4DB0D6; --cat-4-fill: #4DB0D626; --cat-4-line: #4DB0D666;
-    --cat-5: #8D92E0; --cat-5-fill: #8D92E026; --cat-5-line: #8D92E066;
-    --cat-6: #6A66C2; --cat-6-fill: #6A66C226; --cat-6-line: #6A66C266;
-    --cat-7: #7FC3E3; --cat-7-fill: #7FC3E326; --cat-7-line: #7FC3E366;
-    --cat-8: #BFD1EA; --cat-8-fill: #BFD1EA26; --cat-8-line: #BFD1EA66;
-    --cat-9: #8391A6; --cat-9-fill: #8391A626; --cat-9-line: #8391A666;
+    --bg: #0A101C;
+    --card: #1C2840;
+    --text: #EEF3FB;
+    --text-muted: #9FB0CC;
+    --border: #3A4D74;
+    --accent: #9CC0FF;
+    --on-accent: #0A101C;
+    --banner-bg: #24365A;
+    --banner-text: #D5E3FA;
+    --cat-1: #D3E3FF; --cat-1-fill: #D3E3FF26; --cat-1-line: #D3E3FF66;
+    --cat-2: #86AEF7; --cat-2-fill: #86AEF726; --cat-2-line: #86AEF766;
+    --cat-3: #4E86E8; --cat-3-fill: #4E86E826; --cat-3-line: #4E86E866;
+    --cat-4: #5CCBF2; --cat-4-fill: #5CCBF226; --cat-4-line: #5CCBF266;
+    --cat-5: #FF9A82; --cat-5-fill: #FF9A8226; --cat-5-line: #FF9A8266;
+    --cat-6: #8E8CF0; --cat-6-fill: #8E8CF026; --cat-6-line: #8E8CF066;
+    --cat-7: #F2B84B; --cat-7-fill: #F2B84B26; --cat-7-line: #F2B84B66;
+    --cat-8: #4FD1B6; --cat-8-fill: #4FD1B626; --cat-8-line: #4FD1B666;
+    --cat-9: #FF7AA8; --cat-9-fill: #FF7AA826; --cat-9-line: #FF7AA866;
   }
 }
 
 /* Dark: forced from Settings */
 :root[data-theme="dark"] {
-  --bg: #0F1622;
-  --card: #161F2E;
-  --text: #CBD5E4;
-  --text-muted: #8392A8;
-  --border: #243044;
-  --accent: #7D9FD6;
-  --on-accent: #0F1622;
-  --banner-bg: #1A2840;
-  --banner-text: #B5C9E6;
-  --cat-1: #4A66B0; --cat-1-fill: #4A66B026; --cat-1-line: #4A66B066;
-  --cat-2: #658CD6; --cat-2-fill: #658CD626; --cat-2-line: #658CD666;
-  --cat-3: #8FAEE6; --cat-3-fill: #8FAEE626; --cat-3-line: #8FAEE666;
-  --cat-4: #4DB0D6; --cat-4-fill: #4DB0D626; --cat-4-line: #4DB0D666;
-  --cat-5: #8D92E0; --cat-5-fill: #8D92E026; --cat-5-line: #8D92E066;
-  --cat-6: #6A66C2; --cat-6-fill: #6A66C226; --cat-6-line: #6A66C266;
-  --cat-7: #7FC3E3; --cat-7-fill: #7FC3E326; --cat-7-line: #7FC3E366;
-  --cat-8: #BFD1EA; --cat-8-fill: #BFD1EA26; --cat-8-line: #BFD1EA66;
-  --cat-9: #8391A6; --cat-9-fill: #8391A626; --cat-9-line: #8391A666;
+  --bg: #0A101C;
+  --card: #1C2840;
+  --text: #EEF3FB;
+  --text-muted: #9FB0CC;
+  --border: #3A4D74;
+  --accent: #9CC0FF;
+  --on-accent: #0A101C;
+  --banner-bg: #24365A;
+  --banner-text: #D5E3FA;
+  --cat-1: #D3E3FF; --cat-1-fill: #D3E3FF26; --cat-1-line: #D3E3FF66;
+  --cat-2: #86AEF7; --cat-2-fill: #86AEF726; --cat-2-line: #86AEF766;
+  --cat-3: #4E86E8; --cat-3-fill: #4E86E826; --cat-3-line: #4E86E866;
+  --cat-4: #5CCBF2; --cat-4-fill: #5CCBF226; --cat-4-line: #5CCBF266;
+  --cat-5: #FF9A82; --cat-5-fill: #FF9A8226; --cat-5-line: #FF9A8266;
+  --cat-6: #8E8CF0; --cat-6-fill: #8E8CF026; --cat-6-line: #8E8CF066;
+  --cat-7: #F2B84B; --cat-7-fill: #F2B84B26; --cat-7-line: #F2B84B66;
+  --cat-8: #4FD1B6; --cat-8-fill: #4FD1B626; --cat-8-line: #4FD1B666;
+  --cat-9: #FF7AA8; --cat-9-fill: #FF7AA826; --cat-9-line: #FF7AA866;
 }

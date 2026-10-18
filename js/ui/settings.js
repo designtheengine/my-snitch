@@ -3,7 +3,7 @@
 // Error log. v22 adds Categories and Gap threshold. v23 adds Export (the safeguard banners live on Home).
 // Like every screen file, it only draws and reacts to taps. The rules are in categories.js.
 
-import { el, clear, section } from './dom.js';
+import { el, clear, section, backButton } from './dom.js';
 import { getSetting, setSetting, getCategories, addCategory, updateCategory, getAllBlocks, getAllLabels, getAllSleep } from '../db.js';
 import { formatLog } from '../errorlog.js';
 import { catStyle } from './dom.js';
@@ -48,7 +48,7 @@ async function draw(ctx, root, ui) {
 
   // ---- 1 Theme
   const themeMsg = el('div', { class: 'muted msg' });
-  const themeRow = el('div', { class: 'btn-row' }, THEMES.map((t) =>
+  const themeRow = el('div', { class: 'btn-row seg' }, THEMES.map((t) =>
     el('button', {
       type: 'button',
       class: 'btn' + (t.value === theme ? ' btn-primary' : ''),
@@ -191,7 +191,7 @@ async function draw(ctx, root, ui) {
   );
 
   // ---- 3 Gap threshold
-  const gapRow = el('div', { class: 'btn-row' }, GAP_CHOICES.map((n) =>
+  const gapRow = el('div', { class: 'btn-row seg' }, GAP_CHOICES.map((n) =>
     el('button', {
       type: 'button',
       class: 'btn' + (n === gap ? ' btn-primary' : ''),
@@ -319,9 +319,9 @@ async function draw(ctx, root, ui) {
   }, 'Copy log');
 
   root.append(
-    el('div', { class: 'head page-head' }, [
-      el('h2', { class: 'title', text: 'Settings' }),
-      el('button', { type: 'button', class: 'btn btn-text', onclick: () => ctx.show('home') }, 'Back')
+    el('div', { class: 'head page-head head-back' }, [
+      backButton(() => ctx.show('home')),
+      el('h2', { class: 'title', text: 'Settings' })
     ]),
     section(1, 'Theme', [
       el('p', { class: 'muted', text: 'Follow phone uses light or dark the way your phone is set.' }),
@@ -342,8 +342,8 @@ async function draw(ctx, root, ui) {
     section(4, 'Export', [
       el('p', { class: 'muted', text: 'A copy of everything on this phone. The CSV opens in a spreadsheet and matches your Sheet\'s raw columns. The JSON is a restore copy. Neither holds your key.' }),
       el('div', { class: 'btn-row' }, [
-        el('button', { type: 'button', class: 'btn', onclick: () => exportFile('csv') }, 'Export CSV'),
-        el('button', { type: 'button', class: 'btn', onclick: () => exportFile('json') }, 'Export JSON')
+        el('button', { type: 'button', class: 'btn btn-export', onclick: () => exportFile('csv') }, 'Export CSV'),
+        el('button', { type: 'button', class: 'btn btn-export', onclick: () => exportFile('json') }, 'Export JSON')
       ]),
       exportMsg
     ]),
@@ -358,6 +358,7 @@ async function draw(ctx, root, ui) {
       el('div', { class: 'btn-row' }, [copyBtn]),
       logBox,
       logMsg
-    ])
+    ]),
+    el('p', { class: 'muted version', text: 'my snitch. ' + ctx.version })
   );
 }

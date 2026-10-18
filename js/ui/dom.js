@@ -44,6 +44,14 @@ export function section(num, title, children) {
   ]);
 }
 
+// The round back arrow that starts the header row on every screen except Home (v24).
+// It does what the left-edge swipe does: it shows Home.
+export function backButton(onclick) {
+  const b = el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Back', title: 'Back', onclick: onclick });
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
+  return b;
+}
+
 // A small dustbin icon button. The SVG is a fixed string written here, never user text.
 export function binButton(label, onclick) {
   const b = el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': label, title: label, onclick: onclick });

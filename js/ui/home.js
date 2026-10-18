@@ -50,7 +50,7 @@ function statusCard(ctx) {
   const running = ctx.state.running;
   if (!running) {
     return el('div', { class: 'card' }, [
-      el('div', { class: 'title', text: 'What are you doing?' }),
+      el('div', { class: 'card-heading', text: 'What are you doing?' }),
       el('div', { class: 'spacer' }),
       el('button', { type: 'button', class: 'btn btn-primary btn-wide', onclick: () => ctx.show('entry', 'start') }, 'Start')
     ]);
@@ -97,8 +97,8 @@ function gapBanner(ctx) {
 }
 
 // Two fixed icons, written here as strings and never built from user text.
-const MOON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
-const SUN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+const SUN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg>';
 
 function sleepButton(icon, text, onclick) {
   const b = el('button', { type: 'button', class: 'btn btn-primary btn-sleep', onclick: onclick });
@@ -190,9 +190,8 @@ export function entryRow(ctx, block, today, opts) {
   // Minutes add up to the block's minutes (the same split math as the entry form).
   const mins = split ? displayMinutes(block.end_epoch - block.start_epoch, block.lines.map((l) => l.share_pct)) : null;
   const names = split ? block.lines.map((l, i) => l.category + ' ' + mins[i] + ' min').join(' / ') : first.category;
-  const range = formatClock12(block.start_epoch, tz) + ' to ' + formatClock12(block.end_epoch, tz);
   const date = options.showDate === false || localDate(block.start_epoch, tz) === today ? '' : shortDate(block.start_epoch, tz) + ', ';
-  const sub = names + ' \u00b7 ' + date + range + ' \u00b7 ' + formatDuration(block.end_epoch - block.start_epoch);
+  const when = date + formatClock12(block.start_epoch, tz) + ' \u00b7 ' + formatDuration(block.end_epoch - block.start_epoch);
   // A block the Sheet already holds, with a newer version waiting, is an "edit". A deleted one waits to send its deletion.
   const tag = block.is_deleted ? 'deleted' : block.synced_version >= 1 && block.dirty === 1 ? 'edit' : null;
   const tappable = typeof options.onTap === 'function' && !block.is_deleted;
@@ -204,10 +203,12 @@ export function entryRow(ctx, block, today, opts) {
     onkeydown: tappable ? (e) => { if (e.key === 'Enter' || e.key === ' ') options.onTap(); } : null
   }, [
     el('span', { class: 'dot', style: catStyle(slotFor(ctx, first.category)) }),
+    // One line (v24): category, then the label, with the start time and length on the right.
     el('div', { class: 'row-main' }, [
-      el('div', { class: 'row-title', text: title }),
-      el('div', { class: 'muted', text: sub })
+      el('span', { class: 'row-title', text: names }),
+      title ? el('span', { class: 'row-sub', text: ' \u00b7 ' + title }) : null
     ]),
+    el('span', { class: 'row-when', text: when }),
     tag ? el('span', { class: 'tag', text: tag }) : null
   ]);
 }
@@ -232,6 +233,23 @@ function unsyncedList(ctx) {
   return wrap;
 }
 
+// Three soft layers behind the top of Home (chosen 18 Oct 2026, "layered waves"). A fixed string, drawn in the accent colour
+// at low strength, so it follows light and dark by itself.
+const WAVES = '<svg viewBox="0 0 390 170" preserveAspectRatio="none" fill="currentColor" aria-hidden="true"><path opacity="0.07" d="M0 0H390V130C320 160 250 100 180 128S50 150 0 122Z"/><path opacity="0.10" d="M0 0H390V92C330 122 270 62 195 90S60 112 0 82Z"/><path opacity="0.14" d="M0 0H390V54C340 80 280 26 200 52S60 72 0 44Z"/></svg>';
+const GEAR = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+
+function headerRight(ctx) {
+  const gear = el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Settings', title: 'Settings', onclick: () => ctx.show('settings') });
+  gear.innerHTML = GEAR;
+  return el('div', { class: 'head-right' }, [sleepControl(ctx), gear]);
+}
+
+function wavesLayer() {
+  const w = el('div', { class: 'waves', 'aria-hidden': 'true' });
+  w.innerHTML = WAVES;
+  return w;
+}
+
 export function drawHome(ctx) {
   const root = ctx.panels.home;
   stopTicker();
@@ -242,7 +260,8 @@ export function drawHome(ctx) {
   const stale = staleBanner(ctx);
   const longT = longTimerBanner(ctx);
   root.append(
-    el('div', { class: 'head' }, [el('h1', { class: 'title', text: 'my snitch.' }), sleepControl(ctx)]),
+    wavesLayer(),
+    el('div', { class: 'head' }, [el('h1', { class: 'brand', text: 'my snitch.' }), headerRight(ctx)]),
     ...(review ? [review] : []),
     ...(stale ? [stale] : []),
     ...(longT ? [longT] : []),
@@ -250,11 +269,7 @@ export function drawHome(ctx) {
     missedButton(ctx),
     ...(banner ? [banner] : []),
     syncBar(ctx),
-    unsyncedList(ctx),
-    el('div', { class: 'foot' }, [
-      el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('settings') }, 'Settings'),
-      el('p', { class: 'muted', text: 'app ' + ctx.version })
-    ])
+    unsyncedList(ctx)
   );
   if (ctx.state.running) startTicker(ctx);
 }

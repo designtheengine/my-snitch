@@ -8,7 +8,7 @@
 //
 // data: {shared, running, next}
 
-import { el, section } from './dom.js';
+import { el, section, backButton } from './dom.js';
 import { saveBlock, removeBlock, getRunningBlock } from '../db.js';
 import { finishBlock, elapsedSeconds } from '../model.js';
 import { formatDuration, formatClock12 } from '../time.js';
@@ -75,7 +75,7 @@ export async function openEnd(ctx, root, data) {
   const names = running.lines.map((l) => l.category).join(' / ');
   const label = running.lines[0].label;
   root.append(
-    el('div', { class: 'head page-head' }, [el('h2', { class: 'title', text: isSwitch ? 'End this block, then switch' : 'End block' })]),
+    el('div', { class: 'head page-head head-back' }, [backButton(() => ctx.show('home')), el('h2', { class: 'title', text: isSwitch ? 'End this block, then switch' : 'End block' })]),
     section(1, 'This block', [
       el('div', { class: 'summary', text: label ? names + ', ' + label : names }),
       el('div', { class: 'muted', text: formatClock12(running.start_epoch, tz) + ' to ' + formatClock12(endEpoch, tz) + ' · ' + formatDuration(elapsedSeconds(running, endEpoch)) })

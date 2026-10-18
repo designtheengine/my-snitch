@@ -8,7 +8,7 @@
 // openHistory(ctx, root, data): data.fresh is true when Home opened it, so the list starts at the top.
 // Coming back from edit mode keeps however many days were showing.
 
-import { el, clear } from './dom.js';
+import { el, clear, backButton } from './dom.js';
 import { getAllBlocks } from '../db.js';
 import { formatDuration, localDate, addDays, epochFromLocal } from '../time.js';
 import { newNight, updateNight } from '../sleep.js';
@@ -92,9 +92,9 @@ export async function openHistory(ctx, root, data) {
   }
 
   root.append(
-    el('div', { class: 'head page-head' }, [
-      el('h2', { class: 'title', text: 'History' }),
-      el('button', { type: 'button', class: 'btn btn-text', onclick: () => ctx.show('home') }, 'Back')
+    el('div', { class: 'head page-head head-back' }, [
+      backButton(() => ctx.show('home')),
+      el('h2', { class: 'title', text: 'History' })
     ]),
     el('button', { type: 'button', class: 'btn btn-wide', onclick: () => startMissedNight(ctx) }, 'Add a missed night'),
     el('p', { class: 'muted', text: 'Blocks the Sheet already holds. Tap one to edit or delete it. The original rows stay in the Sheet.' }),

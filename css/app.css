@@ -1,7 +1,7 @@
 /*
   my snitch. layout and components (Phase 3, extended in Phase 4).
   Every colour, size and radius comes from css/tokens.css. No raw colour values here.
-  Look: flat, hairline borders, no shadows, no gradients.
+  Look (v24): flat, 1px borders, no shadows. Rounded cards, thin rows, one type scale.
 */
 
 :root { color-scheme: light dark; }
@@ -45,8 +45,11 @@ h1, h2, p { margin: 0; }
 
 .section-label {
   color: var(--text-muted);
-  font-size: var(--text-small);
-  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: var(--space-5) var(--space-1) var(--space-2);
 }
 
 .spacer { height: var(--space-3); }
@@ -57,21 +60,77 @@ h1, h2, p { margin: 0; }
   background: var(--card);
   border: var(--hairline) solid var(--border);
   border-radius: var(--radius-card);
-  padding: var(--space-4);
-  margin-bottom: var(--space-3);
+  padding: 14px var(--space-4);
+  margin-bottom: 10px;
 }
 
 .head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
   margin: var(--space-2) 0 var(--space-4);
+}
+
+/* ---------------------------------------------------------------- header, back arrow, waves (v24) */
+
+.brand {
+  font-size: var(--text-title);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.head-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.icon-btn {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: var(--hairline) solid var(--border);
+  background: var(--card);
+  color: var(--text-muted);
+}
+
+/* On the other screens the back arrow and the title share one row, arrow first. */
+.head-back {
+  justify-content: flex-start;
+  gap: var(--space-3);
+}
+
+/* Layered waves behind the top of Home. They sit under everything, so taps pass through. */
+#home { position: relative; }
+#home > * { position: relative; z-index: 1; }
+#home > .waves {
+  position: absolute;
+  z-index: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 170px;
+  color: var(--accent);
+  pointer-events: none;
+}
+.waves svg { display: block; width: 100%; height: 100%; }
+
+.card-heading {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-medium);
 }
 
 .status-line {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
+  font-size: var(--text-heading);
   font-weight: var(--weight-medium);
 }
 
@@ -83,7 +142,8 @@ h1, h2, p { margin: 0; }
   font-size: var(--text-timer);
   font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
-  margin: var(--space-3) 0 var(--space-4);
+  letter-spacing: -0.02em;
+  margin: 6px 0 var(--space-3);
 }
 
 .sync-bar {
@@ -96,13 +156,14 @@ h1, h2, p { margin: 0; }
 /* ---------------------------------------------------------------- buttons */
 
 .btn {
-  min-height: var(--tap-min);
+  min-height: 42px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-button);
   border: var(--hairline) solid var(--border);
   background: var(--card);
   color: var(--text);
   font: inherit;
+  font-size: var(--text-body);
   font-weight: var(--weight-medium);
 }
 
@@ -129,12 +190,34 @@ h1, h2, p { margin: 0; }
   width: 100%;
 }
 
+/* Settings: a row of choices that reads as one control (Theme, Gap length). */
+.seg {
+  gap: 0;
+  padding: 3px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-button);
+  background: var(--card);
+}
+.seg .btn {
+  min-height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-small);
+}
+.seg .btn-primary { background: var(--accent); color: var(--on-accent); }
+
+/* Settings: the two Export buttons are quieter than the rest. */
+.btn-export { min-height: 36px; font-size: var(--text-small); }
+
 /* ---------------------------------------------------------------- category dot and chips */
 
 .dot {
   flex: none;
   width: var(--dot-size);
   height: var(--dot-size);
+  border-radius: 3px;
   background: var(--c, var(--text-muted));
 }
 
@@ -354,15 +437,15 @@ h1, h2, p { margin: 0; }
 /* ---------------------------------------------------------------- Home: missed button and gap banner */
 
 .missed {
-  margin-bottom: var(--space-3);
+  margin-bottom: 10px;
 }
 
 .banner {
   display: block;
   width: 100%;
   min-height: var(--tap-min);
-  padding: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-3);
+  padding: 10px 14px;
+  margin-bottom: 10px;
   text-align: left;
   font: inherit;
   background: var(--banner-bg);
@@ -372,6 +455,7 @@ h1, h2, p { margin: 0; }
 }
 
 .banner-title {
+  font-size: var(--text-body);
   font-weight: var(--weight-medium);
 }
 
@@ -395,9 +479,9 @@ h1, h2, p { margin: 0; }
 .row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  min-height: var(--tap-min);
-  padding: var(--space-3) var(--space-4);
+  gap: 10px;
+  min-height: var(--row-min);
+  padding: 6px 14px;
   border-top: var(--hairline) solid var(--border);
 }
 
@@ -410,10 +494,19 @@ h1, h2, p { margin: 0; }
   min-width: 0;
 }
 
-.row-title {
+.row-main {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.row-title { font-weight: var(--weight-medium); }
+.row-sub { font-size: var(--text-small); color: var(--text-muted); }
+.row-when {
+  flex: none;
+  font-size: var(--text-small);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .tag {
@@ -522,13 +615,13 @@ h1, h2, p { margin: 0; }
 
 #entry { font-size: 15px; }
 #entry .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
-#entry .title { font-size: 22px; }
+#entry .title { font-size: var(--text-title); }
 
 .sect {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  margin-bottom: var(--space-4);
+  border-radius: var(--radius-card);
+  margin-bottom: var(--space-3);
   overflow: hidden;
 }
 .sect-head {
@@ -539,8 +632,7 @@ h1, h2, p { margin: 0; }
   background: var(--banner-bg);
   color: var(--banner-text);
   font-weight: var(--weight-medium);
-  font-size: 15px;
-  letter-spacing: 0.02em;
+  font-size: var(--text-body);
 }
 .sect-num {
   display: inline-flex;
@@ -551,7 +643,7 @@ h1, h2, p { margin: 0; }
   border-radius: 50%;
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 13px;
+  font-size: var(--text-small);
 }
 .sect-body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
 .sect-body p.muted { margin: 0; }
@@ -575,7 +667,7 @@ h1, h2, p { margin: 0; }
 #entry .share-text { margin-left: auto; margin-right: var(--space-2); font-weight: var(--weight-medium); }
 
 /* buttons */
-#entry .btn { min-height: 44px; font-size: 15px; }
+#entry .btn { min-height: 42px; font-size: 15px; }
 .btn-icon { width: 40px; min-height: 40px !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); background: transparent; }
 #entry .btn-wide { width: 100%; border: 1px dashed var(--accent); color: var(--accent); background: transparent; }
 #entry .btn-row { margin-top: var(--space-2); padding-bottom: var(--space-4); }
@@ -589,7 +681,7 @@ h1, h2, p { margin: 0; }
    repeats the entry screen rules it shares (cards, chips, buttons). */
 
 .sleep-ctl { display: flex; gap: var(--space-2); }
-.btn-sleep { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; font-size: 15px; }
+.btn-sleep { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 11px; border-radius: 999px; font-size: var(--text-small); }
 
 #sleep { font-size: 15px; }
 #sleep .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
@@ -614,14 +706,15 @@ h1, h2, p { margin: 0; }
 #settings .cat-list { list-style: none; margin: 0; padding: 0; }
 #settings .cat-item { border-top: 1px solid var(--border); }
 #settings .cat-item:first-child { border-top: none; }
-#settings .cat-row { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 44px; padding: 0; background: transparent; border: none; color: var(--text); font: inherit; text-align: left; }
+#settings .cat-row { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 38px; padding: 0; background: transparent; border: none; color: var(--text); font: inherit; text-align: left; }
 #settings .cat-name { flex: 1; }
 #settings .cat-editor { padding: var(--space-2) 0 var(--space-3); }
 #settings .swatch-row { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
-#settings .swatch { width: 36px; height: 36px; padding: 0; border-radius: 6px; border: 1px solid var(--border); background: var(--c); }
+#settings .swatch { width: 36px; height: 36px; padding: 0; border-radius: 10px; border: 1px solid var(--border); background: var(--c); }
 #settings .swatch[aria-pressed="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
 #settings .section-label { margin: var(--space-4) 0 var(--space-2); }
 #settings .log-box { width: 100%; margin-top: var(--space-2); font-size: 13px; }
+#settings .version { text-align: center; margin: var(--space-4) 0 var(--space-5); }
 .key-link { margin-top: var(--space-2); min-height: 36px; font-size: 13px; padding: 0; }
 
 /* ---------------------------------------------------------------- history and tappable rows (Phase 7) */
