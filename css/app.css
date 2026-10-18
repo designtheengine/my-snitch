@@ -840,3 +840,32 @@ h1, h2, p { margin: 0; }
 .line-head .btn-icon::after {
   content: ''; position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%);
 }
+
+/* ---------------------------------------------------------------- frozen header (v32) */
+
+/* The header row of every screen stays at the top while the page scrolls, so the back arrow, the gear and
+   the Going to bed pill are always in reach. At the very top it is see-through, so the waves show. Once
+   the page has scrolled, js/app.js adds the class "scrolled" to <html>, and a solid page colour fades in
+   behind the row so cards do not show through. The extra layer is wider than the row, to cover the side
+   margins of the page. "top: 8px" matches the 8px the row sits below the top edge at rest. The status bar
+   style is "default", so the page already starts below the phone's status bar (unproven on the phone). */
+.panel > .head {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+}
+.panel > .head::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: -8px;
+  bottom: -4px;
+  left: calc(var(--space-4) * -1);
+  right: calc(var(--space-4) * -1);
+  background: var(--bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.scrolled .panel > .head::before { opacity: 1; }
+.scrolled #home > .head::before { border-bottom: 1px solid var(--border); }

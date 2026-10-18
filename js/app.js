@@ -29,7 +29,7 @@ import { addEntry } from './errorlog.js';
 import { staleUnsynced, longTimer } from './safeguards.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v31';
+export const APP_VERSION = 'v32';
 
 const panels = {
   home: document.getElementById('home'),
@@ -94,6 +94,14 @@ function warn(message) {
 warnEl.addEventListener('click', () => {
   warnEl.hidden = true;
 });
+
+// The header row of each screen is frozen at the top (v32). Once the page has scrolled a few pixels,
+// the page gets the class "scrolled", and the CSS puts a solid background behind the frozen row.
+function markScrolled() {
+  document.documentElement.classList.toggle('scrolled', window.scrollY > 4);
+}
+window.addEventListener('scroll', markScrolled, { passive: true });
+markScrolled();
 
 async function loadState(db) {
   const now = nowEpoch();
