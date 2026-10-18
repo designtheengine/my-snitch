@@ -10,7 +10,7 @@ import { catStyle } from './dom.js';
 import { nextColorSlot, isLocked, checkName, renameChanges } from '../categories.js';
 import { exportCsv, exportJson } from '../safeguards.js';
 import { nightRoles } from '../sleep.js';
-import { localDate } from '../time.js';
+import { localDate, fullMoment } from '../time.js';
 
 const THEMES = [
   { value: 'auto', text: 'Follow phone' },
@@ -45,6 +45,7 @@ async function draw(ctx, root, ui) {
   const theme = (await getSetting(ctx.db, 'theme')) || 'auto';
   const hasKey = !!(await getSetting(ctx.db, 'secret_key'));
   const log = (await getSetting(ctx.db, 'error_log')) || [];
+  const lastSync = await getSetting(ctx.db, 'last_synced_at');
 
   // ---- 1 Theme
   const themeMsg = el('div', { class: 'muted msg' });
@@ -351,7 +352,8 @@ async function draw(ctx, root, ui) {
       el('p', { class: 'muted', text: 'This is the key stored in your Apps Script under the name SECRET. It stays on this phone and is never shown again.' }),
       keyInput,
       keyMsg,
-      el('div', { class: 'btn-row key-row' }, [keyBtn])
+      el('div', { class: 'btn-row key-row' }, [keyBtn]),
+      el('p', { class: 'muted', text: 'Last synced: ' + (lastSync ? fullMoment(lastSync, ctx.tzOffsetMin()) : 'never') })
     ]),
     section(6, 'Error log', [
       el('p', { class: 'muted', text: log.length === 0 ? 'Nothing has gone wrong. The last 50 problems would show up here.' : log.length + (log.length === 1 ? ' problem is' : ' problems are') + ' saved. Copy them to paste into a chat. The log never holds your key.' }),

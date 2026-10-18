@@ -6,7 +6,7 @@
 
 import { el, clear, catStyle } from './dom.js';
 import { elapsedSeconds, displayMinutes } from '../model.js';
-import { formatDuration, formatClock12, localDate, latestGap, sinceText, LONG_GAP_SEC } from '../time.js';
+import { formatDuration, formatClock12, localDate, latestGap, sinceText, syncedText, LONG_GAP_SEC } from '../time.js';
 import { truncateForList } from '../labels.js';
 import { categoryByName } from '../categories.js';
 import { sleepTap } from './sleep-view.js';
@@ -225,7 +225,7 @@ function unsyncedList(ctx) {
   // The label row carries the way into History, where synced blocks live (decided 17 Oct 2026, D64).
   const wrap = el('div', {}, [
     el('div', { class: 'list-head' }, [
-      el('div', { class: 'section-label', text: 'Unsynced \u00b7 ' + list.length + ' \u00b7 last synced ' + (ctx.state.lastSyncedAt ? formatClock12(ctx.state.lastSyncedAt, ctx.tzOffsetMin()) : 'never') }),
+      el('div', { class: 'section-label', text: 'Unsynced \u00b7 ' + list.length + ' \u00b7 ' + syncedText(ctx.state.lastSyncedAt, ctx.nowEpoch(), ctx.tzOffsetMin()) }),
       el('button', { type: 'button', class: 'btn btn-text key-link', onclick: () => ctx.show('history', { fresh: true }) }, 'History')
     ])
   ]);

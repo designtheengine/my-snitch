@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   localDate, toIso, epochFromLocal, addDays, fallbackDay, reportingDay, nightDay,
-  autoCloseEpoch, findGaps, latestGap, dayGaps, minutesAgo, formatDuration, formatClock12, sinceText, sinceLastBlock, nightAfter, LONG_GAP_SEC
+  autoCloseEpoch, findGaps, latestGap, dayGaps, minutesAgo, formatDuration, formatClock12, sinceText, sinceLastBlock, nightAfter, LONG_GAP_SEC, syncedText, fullMoment
 } from '../js/time.js';
 
 const IST = 330;
@@ -221,4 +221,16 @@ test('nightAfter picks 11:00 pm of the same evening, or the next one when that h
   assert.equal(late.bed, t(23, 0, 0, '2026-10-18'));
   assert.equal(late.wake, t(7, 0, 0, '2026-10-19'));
   assert.equal(LONG_GAP_SEC, 50400);
+});
+
+test('syncedText: never, today, yesterday and earlier days', () => {
+  const now = t(9, 0, 0, '2026-10-19');
+  assert.equal(syncedText(null, now, IST), 'never synced');
+  assert.equal(syncedText(t(16, 12, 0, '2026-10-19'), now, IST), 'synced 4:12 pm');
+  assert.equal(syncedText(t(23, 30, 0, '2026-10-18'), now, IST), 'synced yesterday');
+  assert.equal(syncedText(t(16, 12, 0, '2026-10-15'), now, IST), 'synced 4 days ago');
+});
+
+test('fullMoment gives weekday, date and time', () => {
+  assert.equal(fullMoment(t(16, 12, 0, '2026-10-17'), IST), 'Sat 17 Oct, 4:12 pm');
 });

@@ -186,3 +186,25 @@ export function sinceText(startEpoch, nowEpoch, offsetMin) {
   const weekday = WEEKDAYS[new Date(startDate + 'T00:00:00Z').getUTCDay()];
   return weekday + ' ' + clock + ' (' + days + (days === 1 ? ' day)' : ' days)');
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// How the Unsynced heading on Home says when you last synced (v36). Today it gives the time, "synced 4:12 pm".
+// Yesterday it says "synced yesterday", and earlier it counts calendar days, "synced 4 days ago". With no sync
+// yet it says "never synced".
+export function syncedText(syncEpoch, nowEpoch, offsetMin) {
+  if (syncEpoch === null || syncEpoch === undefined) return 'never synced';
+  const syncDate = localDate(syncEpoch, offsetMin);
+  const nowDate = localDate(nowEpoch, offsetMin);
+  if (syncDate === nowDate) return 'synced ' + formatClock12(syncEpoch, offsetMin);
+  const days = Math.round((Date.parse(nowDate + 'T00:00:00Z') - Date.parse(syncDate + 'T00:00:00Z')) / 86400000);
+  return days === 1 ? 'synced yesterday' : 'synced ' + days + ' days ago';
+}
+
+// The full moment for Settings: "Sat 17 Oct, 4:12 pm".
+export function fullMoment(epoch, offsetMin) {
+  const date = localDate(epoch, offsetMin);
+  const weekday = WEEKDAYS[new Date(date + 'T00:00:00Z').getUTCDay()];
+  const p = date.split('-').map(Number);
+  return weekday + ' ' + p[2] + ' ' + MONTHS[p[1] - 1] + ', ' + formatClock12(epoch, offsetMin);
+}
