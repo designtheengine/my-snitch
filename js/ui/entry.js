@@ -13,7 +13,7 @@
 //   {mode: 'start', ending: {end, lines, changed}} the start form after the End screen, for a switch
 //   {mode: 'edit', blockId, back}                  a saved block from Home or History. back is 'home' or 'history'.
 
-import { el, clear } from './dom.js';
+import { el, clear, section, backButton } from './dom.js';
 import { getCategories, getAllBlocks, getAllLabels, getAllSleep, getRunningBlock, applySwitch, saveBlock } from '../db.js';
 import { switchBlock, editBlock } from '../model.js';
 import { usageCounts, categoryByName } from '../categories.js';
@@ -165,12 +165,14 @@ export async function openEntry(ctx, arg) {
   updateStart();
 
   root.append(
-    el('div', { class: 'head' }, [el('h2', { class: 'title', text: isChange ? 'Change' : running ? 'Switch to' : 'Start' })]),
+    el('div', { class: 'head page-head head-back' }, [
+      backButton(() => ctx.show('home')),
+      el('h2', { class: 'title', text: isChange ? 'Change' : running ? 'Switch to' : 'Start' })
+    ]),
     // append() prints a null as the word "null", so an empty subtitle is left out of the list.
-    ...(subtitle ? [subtitle] : []),
-    picker.node,
-    label.node,
-    el('div', { class: 'spacer' }),
+    ...(subtitle ? [el('p', { class: 'muted start-note', text: subtitle.textContent })] : []),
+    section(1, 'Category', [picker.node]),
+    section(2, 'Label', [label.node]),
     el('div', { class: 'btn-row' }, [
       el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('home') }, 'Cancel'),
       startBtn

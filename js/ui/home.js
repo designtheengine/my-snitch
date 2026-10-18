@@ -233,21 +233,12 @@ function unsyncedList(ctx) {
   return wrap;
 }
 
-// Three soft layers behind the top of Home (chosen 18 Oct 2026, "layered waves"). A fixed string, drawn in the accent colour
-// at low strength, so it follows light and dark by itself.
-const WAVES = '<svg viewBox="0 0 390 170" preserveAspectRatio="none" fill="currentColor" aria-hidden="true"><path opacity="0.07" d="M0 0H390V130C320 160 250 100 180 128S50 150 0 122Z"/><path opacity="0.10" d="M0 0H390V92C330 122 270 62 195 90S60 112 0 82Z"/><path opacity="0.14" d="M0 0H390V54C340 80 280 26 200 52S60 72 0 44Z"/></svg>';
 const GEAR = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
 function headerRight(ctx) {
   const gear = el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Settings', title: 'Settings', onclick: () => ctx.show('settings') });
   gear.innerHTML = GEAR;
   return el('div', { class: 'head-right' }, [sleepControl(ctx), gear]);
-}
-
-function wavesLayer() {
-  const w = el('div', { class: 'waves', 'aria-hidden': 'true' });
-  w.innerHTML = WAVES;
-  return w;
 }
 
 export function drawHome(ctx) {
@@ -260,7 +251,6 @@ export function drawHome(ctx) {
   const stale = staleBanner(ctx);
   const longT = longTimerBanner(ctx);
   root.append(
-    wavesLayer(),
     el('div', { class: 'head' }, [el('h1', { class: 'brand', text: 'my snitch.' }), headerRight(ctx)]),
     ...(review ? [review] : []),
     ...(stale ? [stale] : []),
