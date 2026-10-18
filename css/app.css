@@ -769,6 +769,8 @@ h1, h2, p { margin: 0; }
 #settings .page-head { padding-bottom: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
 #settings .title { font-size: 22px; }
 #settings .sect-body .btn-row { margin-top: var(--space-2); }
+/* The Save key button sits closer under its box (v31): only the 12px gap of the card is left. */
+#settings .sect-body .key-row { margin-top: 0; }
 #settings .cat-list { list-style: none; margin: 0; padding: 0; }
 #settings .cat-item { border-top: 1px solid var(--border); }
 #settings .cat-item:first-child { border-top: none; }
@@ -804,3 +806,37 @@ h1, h2, p { margin: 0; }
 /* Start, Switch and Change use the same cards as the other entry screens (v25) */
 #entry .start-note { margin: 0 var(--space-2) var(--space-3); }
 #entry .sect-body .chips { margin: 0 calc(var(--space-1) * -1); }
+
+/* ---------------------------------------------------------------- category tiles and the dustbin (v31) */
+
+/* Category tiles on the entry screens and the sleep screen: squarer, smaller and quieter (chosen 19 Oct 2026,
+   "option C"). Corners are 8px instead of fully round, tiles are 32px tall with 14px text and an 8px dot.
+   An unchosen tile has no border, only its tint and its dot, and the chosen tile keeps its outline.
+   The "+ new" tile keeps its dashed border. The time choices ("15 min ago") are a different group
+   (.chip-row) and keep their round look. */
+#entry .chips .chip, #sleep .chips .chip {
+  border-radius: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 14px;
+}
+#entry .chips .dot, #sleep .chips .dot { width: 8px; height: 8px; border-radius: 2px; }
+#entry .chips .chip:not([aria-pressed="true"]):not(.chip-new),
+#sleep .chips .chip:not([aria-pressed="true"]):not(.chip-new) { border-color: transparent; }
+#sleep .line .chips { margin-top: var(--space-2); }
+
+/* The dustbin that removes a split activity is a plain dustbin with no box around it. It is drawn 32px
+   high so the tiles under it are not crowded, and it keeps a 44px tap area through the layer below. */
+.line-head { min-height: 32px; margin-bottom: var(--space-1); }
+.line-head .btn-icon {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  min-height: 32px !important;
+  border: 0;
+  background: transparent;
+}
+.line-head .btn-icon::after {
+  content: ''; position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%);
+}

@@ -138,3 +138,19 @@ export function formatClock12(epoch, offsetMin) {
   const m = d.getUTCMinutes();
   return (h % 12 || 12) + ':' + pad(m) + ' ' + (h < 12 ? 'am' : 'pm');
 }
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// How the gap banner says when the silence began (v31). On the same calendar day as now it is
+// just the time, "3:40 pm". On an earlier day it names the weekday and counts the calendar days
+// between that day and today: "Sat 3:40 pm (2 days)". The count is of calendar days, not of
+// 24 hour blocks, so last night at 11:00 pm read at 8:00 am gives "(1 day)".
+export function sinceText(startEpoch, nowEpoch, offsetMin) {
+  const clock = formatClock12(startEpoch, offsetMin);
+  const startDate = localDate(startEpoch, offsetMin);
+  const nowDate = localDate(nowEpoch, offsetMin);
+  if (startDate === nowDate) return clock;
+  const days = Math.round((Date.parse(nowDate + 'T00:00:00Z') - Date.parse(startDate + 'T00:00:00Z')) / 86400000);
+  const weekday = WEEKDAYS[new Date(startDate + 'T00:00:00Z').getUTCDay()];
+  return weekday + ' ' + clock + ' (' + days + (days === 1 ? ' day)' : ' days)');
+}

@@ -6,7 +6,7 @@
 
 import { el, clear, catStyle } from './dom.js';
 import { elapsedSeconds, displayMinutes } from '../model.js';
-import { formatDuration, formatClock12, localDate, latestGap } from '../time.js';
+import { formatDuration, formatClock12, localDate, latestGap, sinceText } from '../time.js';
 import { truncateForList } from '../labels.js';
 import { categoryByName } from '../categories.js';
 import { sleepTap } from './sleep-view.js';
@@ -86,7 +86,7 @@ function gapBanner(ctx) {
   if (!gap) return null;
   const tz = ctx.tzOffsetMin();
   const text = gap.toNow
-    ? 'Nothing logged since ' + formatClock12(gap.start, tz)
+    ? 'Nothing logged since ' + sinceText(gap.start, gap.end, tz)
     : 'Nothing logged from ' + formatClock12(gap.start, tz) + ' to ' + formatClock12(gap.end, tz);
   const others = gaps.length - 1;
   const sub = others > 0 ? (others === 1 ? '1 earlier gap today' : others + ' earlier gaps today') : 'Tap to fill it in';

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   localDate, toIso, epochFromLocal, addDays, fallbackDay, reportingDay, nightDay,
-  autoCloseEpoch, findGaps, latestGap, dayGaps, minutesAgo, formatDuration, formatClock12
+  autoCloseEpoch, findGaps, latestGap, dayGaps, minutesAgo, formatDuration, formatClock12, sinceText
 } from '../js/time.js';
 
 const IST = 330;
@@ -178,4 +178,24 @@ test('dayGaps: a gap at or under the threshold is not reported', () => {
   const blocks = [{ start_epoch: t(9), end_epoch: t(10), is_deleted: false }];
   assert.deepEqual(dayGaps({ blocks, nowEpoch: t(10, 5), thresholdSec: 300 }), []);
   assert.equal(dayGaps({ blocks, nowEpoch: t(10, 5, 1), thresholdSec: 300 }).length, 1);
+});
+
+// Gap banner wording (v31). 17 Oct 2026 is a Saturday, 18 Oct a Sunday and 19 Oct a Monday.
+test('sinceText gives just the time when the silence began on the same calendar day', () => {
+  assert.equal(sinceText(t(15, 40, 0, '2026-10-19'), t(21, 0, 0, '2026-10-19'), IST), '3:40 pm');
+});
+
+test('sinceText names the weekday and counts calendar days for an earlier day', () => {
+  assert.equal(sinceText(t(15, 40, 0, '2026-10-17'), t(9, 0, 0, '2026-10-19'), IST), 'Sat 3:40 pm (2 days)');
+  assert.equal(sinceText(t(15, 40, 0, '2026-10-12'), t(9, 0, 0, '2026-10-19'), IST), 'Mon 3:40 pm (7 days)');
+});
+
+test('sinceText says 1 day for yesterday, even when only a few hours have passed', () => {
+  assert.equal(sinceText(t(23, 0, 0, '2026-10-18'), t(8, 0, 0, '2026-10-19'), IST), 'Sun 11:00 pm (1 day)');
+});
+
+test('sinceText counts across a month end and uses the given offset for the calendar day', () => {
+  assert.equal(sinceText(t(10, 0, 0, '2026-10-30'), t(10, 0, 0, '2026-11-02'), IST), 'Fri 10:00 am (3 days)');
+  // A silence that began at 11:30 pm and is read at 12:30 am the next day, one calendar day apart, in India time.
+  assert.equal(sinceText(t(23, 30, 0, '2026-10-18'), t(0, 30, 0, '2026-10-19'), IST), 'Sun 11:30 pm (1 day)');
 });

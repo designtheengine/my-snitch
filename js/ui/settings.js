@@ -351,7 +351,7 @@ async function draw(ctx, root, ui) {
       el('p', { class: 'muted', text: 'This is the key stored in your Apps Script under the name SECRET. It stays on this phone and is never shown again.' }),
       keyInput,
       keyMsg,
-      el('div', { class: 'btn-row' }, [keyBtn])
+      el('div', { class: 'btn-row key-row' }, [keyBtn])
     ]),
     section(6, 'Error log', [
       el('p', { class: 'muted', text: log.length === 0 ? 'Nothing has gone wrong. The last 50 problems would show up here.' : log.length + (log.length === 1 ? ' problem is' : ' problems are') + ' saved. Copy them to paste into a chat. The log never holds your key.' }),
