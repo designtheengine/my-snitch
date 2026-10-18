@@ -379,6 +379,8 @@ h1, h2, p { margin: 0; }
   font-size: var(--text-small);
 }
 
+.banner-actions { margin-top: var(--space-3); }
+
 /* ---------------------------------------------------------------- unsynced list */
 
 .entry-list {

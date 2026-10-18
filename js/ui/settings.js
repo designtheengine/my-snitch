@@ -1,13 +1,16 @@
 // settings.js: the Settings view (PRD section 5.5, Phase 8).
 // v21 built Theme, Sheet connection (the secret key, which used to live on its own small screen) and
-// Error log. v22 adds Categories and Gap threshold. Export and the safeguards arrive in the next release.
+// Error log. v22 adds Categories and Gap threshold. v23 adds Export (the safeguard banners live on Home).
 // Like every screen file, it only draws and reacts to taps. The rules are in categories.js.
 
 import { el, clear, section } from './dom.js';
-import { getSetting, setSetting, getCategories, addCategory, updateCategory } from '../db.js';
+import { getSetting, setSetting, getCategories, addCategory, updateCategory, getAllBlocks, getAllLabels, getAllSleep } from '../db.js';
 import { formatLog } from '../errorlog.js';
 import { catStyle } from './dom.js';
 import { nextColorSlot, isLocked, checkName, renameChanges } from '../categories.js';
+import { exportCsv, exportJson } from '../safeguards.js';
+import { nightRoles } from '../sleep.js';
+import { localDate } from '../time.js';
 
 const THEMES = [
   { value: 'auto', text: 'Follow phone' },
@@ -25,7 +28,18 @@ export async function openSettings(ctx, root) {
 
 async function draw(ctx, root, ui) {
   clear(root);
-  const again = () => draw(ctx, root, ui);
+  // Redrawing empties the panel for a moment, and a short page makes the browser jump to the top.
+  // So the panel keeps its old height while it rebuilds, and the scroll position is put back after.
+  const again = async () => {
+    const y = window.scrollY;
+    root.style.minHeight = root.offsetHeight + 'px';
+    try {
+      await draw(ctx, root, ui);
+    } finally {
+      root.style.minHeight = '';
+      window.scrollTo(0, y);
+    }
+  };
   const categories = await getCategories(ctx.db);
   const gap = await getSetting(ctx.db, 'gap_threshold_min');
   const theme = (await getSetting(ctx.db, 'theme')) || 'auto';
@@ -194,7 +208,63 @@ async function draw(ctx, root, ui) {
     }, n + ' min')
   ));
 
-  // ---- 4 Sheet connection
+  // ---- 4 Export
+  const exportMsg = el('div', { class: 'muted msg' });
+  // Builds one file and hands it over. The share sheet is tried first, so the file can go to Files or Mail.
+  // If the phone has no share sheet for files, a plain download is tried. Both are unproven in the installed
+  // app until tested (log, Phase 8). Neither file ever holds the secret key.
+  async function exportFile(kind) {
+    exportMsg.textContent = 'Preparing the file.';
+    let text;
+    let rows = 0;
+    try {
+      const [blocks, nights, labels, cats, theme2, gap2] = await Promise.all([
+        getAllBlocks(ctx.db), getAllSleep(ctx.db), getAllLabels(ctx.db), getCategories(ctx.db),
+        getSetting(ctx.db, 'theme'), getSetting(ctx.db, 'gap_threshold_min')
+      ]);
+      const tz = ctx.tzOffsetMin();
+      const now = ctx.nowEpoch();
+      if (kind === 'csv') {
+        text = exportCsv(blocks, nightRoles(nights));
+        rows = text.trim().split('\n').length - 1;
+      } else {
+        text = exportJson({
+          exportedAt: new Date(now * 1000).toISOString(), appVersion: ctx.version,
+          settings: { theme: theme2, gap_threshold_min: gap2 }, blocks: blocks, nights: nights, categories: cats, labels: labels
+        });
+        rows = blocks.length;
+      }
+      const name = 'my-snitch-' + localDate(now, tz) + (kind === 'csv' ? '.csv' : '.json');
+      const type = kind === 'csv' ? 'text/csv' : 'application/json';
+      const what = kind === 'csv' ? rows + (rows === 1 ? ' row' : ' rows') : rows + (rows === 1 ? ' block' : ' blocks');
+      const file = new File([text], name, { type: type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: name });
+          exportMsg.textContent = 'Shared ' + name + ' (' + what + ').';
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') {
+            exportMsg.textContent = 'Cancelled. Nothing was exported.';
+            return;
+          }
+          // any other refusal: fall through to the plain download
+        }
+      }
+      const url = URL.createObjectURL(new Blob([text], { type: type }));
+      const link = el('a', { href: url, download: name });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      exportMsg.textContent = 'Download started for ' + name + ' (' + what + '). If nothing appears, tell me and I will add another way.';
+    } catch (err) {
+      ctx.warn('Could not build the export. Nothing was changed. Try again.');
+      exportMsg.textContent = '';
+    }
+  }
+
+  // ---- 5 Sheet connection
   const keyMsg = el('div', { class: 'muted msg' });
   const keyInput = el('input', {
     type: 'password',
@@ -224,7 +294,7 @@ async function draw(ctx, root, ui) {
     await ctx.show('home');
   }
 
-  // ---- 5 Error log
+  // ---- 6 Error log
   const logMsg = el('div', { class: 'muted msg' });
   const logText = formatLog(log, ctx.version, ctx.tzOffsetMin());
   const logBox = el('textarea', { class: 'input log-box', readonly: true, rows: '6', hidden: true });
@@ -269,13 +339,21 @@ async function draw(ctx, root, ui) {
       el('p', { class: 'muted', text: 'The gap banner on Home shows only for holes at least this long.' }),
       gapRow
     ]),
-    section(4, 'Sheet connection', [
+    section(4, 'Export', [
+      el('p', { class: 'muted', text: 'A copy of everything on this phone. The CSV opens in a spreadsheet and matches your Sheet\'s raw columns. The JSON is a restore copy. Neither holds your key.' }),
+      el('div', { class: 'btn-row' }, [
+        el('button', { type: 'button', class: 'btn', onclick: () => exportFile('csv') }, 'Export CSV'),
+        el('button', { type: 'button', class: 'btn', onclick: () => exportFile('json') }, 'Export JSON')
+      ]),
+      exportMsg
+    ]),
+    section(5, 'Sheet connection', [
       el('p', { class: 'muted', text: 'This is the key stored in your Apps Script under the name SECRET. It stays on this phone and is never shown again.' }),
       keyInput,
       keyMsg,
       el('div', { class: 'btn-row' }, [keyBtn])
     ]),
-    section(5, 'Error log', [
+    section(6, 'Error log', [
       el('p', { class: 'muted', text: log.length === 0 ? 'Nothing has gone wrong. The last 50 problems would show up here.' : log.length + (log.length === 1 ? ' problem is' : ' problems are') + ' saved. Copy them to paste into a chat. The log never holds your key.' }),
       el('div', { class: 'btn-row' }, [copyBtn]),
       logBox,

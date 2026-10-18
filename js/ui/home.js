@@ -116,6 +116,33 @@ function sleepControl(ctx) {
   return el('div', { class: 'sleep-ctl' }, [sleepButton(SUN, 'Woke up', () => sleepTap(ctx, 'wake'))]);
 }
 
+// Shown when never-synced blocks have waited over 24 hours (PRD section 9). One tap runs the sync, which opens
+// Settings when no key is saved yet.
+function staleBanner(ctx) {
+  const n = ctx.state.stale;
+  if (!n) return null;
+  return el('button', { type: 'button', class: 'banner', onclick: () => ctx.sync() }, [
+    el('div', { class: 'banner-title', text: n === 1 ? '1 block has waited over a day' : n + ' blocks have waited over a day' }),
+    el('div', { class: 'banner-sub', text: ctx.state.hasKey ? 'Tap to sync now' : 'Tap to set up syncing' })
+  ]);
+}
+
+// Shown when the running block has gone 6 hours without an answer (PRD section 11). Still going quiets it for 6 more
+// hours. Stop opens the usual End screen. A block that ran too long can be shortened afterwards by editing it.
+function longTimerBanner(ctx) {
+  const lt = ctx.state.longTimer;
+  const running = ctx.state.running;
+  if (!lt || !running) return null;
+  return el('div', { class: 'banner' }, [
+    el('div', { class: 'banner-title', text: 'Still doing this?' }),
+    el('div', { class: 'banner-sub', text: running.lines.map((l) => l.category).join(' / ') + ' has been running for ' + formatDuration(lt.seconds) + '.' }),
+    el('div', { class: 'btn-row banner-actions' }, [
+      el('button', { type: 'button', class: 'btn btn-primary', onclick: () => ctx.ackLongTimer() }, 'Still going'),
+      el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('entry', { mode: 'end', next: 'stop' }) }, 'Stop')
+    ])
+  ]);
+}
+
 // Shown after a wake that nobody has reviewed yet. One tap opens the morning check.
 function reviewBanner(ctx) {
   const night = ctx.state.unreviewed;
@@ -212,9 +239,13 @@ export function drawHome(ctx) {
   // append() prints a null as the word "null" (log I4), so an absent banner is left out of the list.
   const banner = gapBanner(ctx);
   const review = reviewBanner(ctx);
+  const stale = staleBanner(ctx);
+  const longT = longTimerBanner(ctx);
   root.append(
     el('div', { class: 'head' }, [el('h1', { class: 'title', text: 'my snitch.' }), sleepControl(ctx)]),
     ...(review ? [review] : []),
+    ...(stale ? [stale] : []),
+    ...(longT ? [longT] : []),
     statusCard(ctx),
     missedButton(ctx),
     ...(banner ? [banner] : []),

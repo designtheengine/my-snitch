@@ -8,7 +8,7 @@ import { epochFromLocal, localDate, addDays } from '../time.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const DAYS_BACK = 6;
+const DAYS_BACK = 29; // today and the 29 days before it, 30 in all (decided 18 Oct 2026, Q19)
 
 const two = (n) => String(n).padStart(2, '0');
 

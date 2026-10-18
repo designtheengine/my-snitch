@@ -26,9 +26,10 @@ import { openSettings } from './ui/settings.js';
 import { openHistory } from './ui/history.js';
 import { runSync, syncLock, friendlyError, DEFAULT_SCRIPT_URL } from './sync.js';
 import { addEntry } from './errorlog.js';
+import { staleUnsynced, longTimer } from './safeguards.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v22';
+export const APP_VERSION = 'v23';
 
 const panels = {
   home: document.getElementById('home'),
@@ -100,14 +101,15 @@ async function loadState(db) {
   const nights = await getAllSleep(db);
   wakes = wakesFrom(nights);
   const held = heldBlockIds(nights);
-  const [categories, running, dirty, lastSyncedAt, dayBlocks, gapMin, key] = await Promise.all([
+  const [categories, running, dirty, lastSyncedAt, dayBlocks, gapMin, key, ack] = await Promise.all([
     getCategories(db),
     getRunningBlock(db),
     getDirtyBlocks(db),
     getSetting(db, 'last_synced_at'),
     getBlocksByDay(db, dayFor(now)),
     getSetting(db, 'gap_threshold_min'),
-    getSetting(db, 'secret_key')
+    getSetting(db, 'secret_key'),
+    getSetting(db, 'long_timer_ack')
   ]);
   // Blocks still running are never synced, so they are not in the list. Neither are the blocks of a
   // night whose wake is not logged yet: they wait until the day they count toward is known.
@@ -130,6 +132,9 @@ async function loadState(db) {
     gaps: gaps,
     openNight: openNight(nights),
     unreviewed: unreviewedNight(nights),
+    // The safeguards (Phase 8): blocks that waited over 24 hours, and a timer that ran 6 hours unanswered.
+    stale: staleUnsynced(unsynced, now),
+    longTimer: longTimer(running, ack || null, now),
     lastSyncedAt: lastSyncedAt || null,
     // Only whether a key exists goes into the state, never the key itself.
     hasKey: !!key,
@@ -159,6 +164,19 @@ async function show(name, arg) {
     warn('Something went wrong reading your saved data.');
   }
   window.scrollTo(0, 0);
+}
+
+// "Still going" on the long timer check: saves the answer for this block, so the question waits 6 more hours.
+async function ackLongTimer() {
+  const running = ctx.state.running;
+  if (!running) return;
+  try {
+    await setSetting(ctx.db, 'long_timer_ack', { block_id: running.block_id, at: nowEpoch() });
+  } catch (err) {
+    warn('Could not save your answer. Nothing was changed. Try again.');
+    return;
+  }
+  await refresh();
 }
 
 function setSyncNote(text) {
@@ -254,7 +272,8 @@ async function boot() {
       refresh: refresh,
       sync: doSync,
       setSyncNote: setSyncNote,
-      applyTheme: () => applyTheme(db)
+      applyTheme: () => applyTheme(db),
+      ackLongTimer: ackLongTimer
     };
     await applyTheme(db);
     await autoClose(db);
