@@ -80,6 +80,28 @@ h1, h2, p { margin: 0; }
   letter-spacing: -0.01em;
 }
 
+/* The icon and the title sit in one row on Home (v27). min-width: 0 lets the title shrink on a
+   narrow phone instead of pushing the pill and the gear off the screen. */
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand-icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: block;
+}
+
+.brand-wrap .brand {
+  margin: 0;
+  white-space: nowrap;
+}
+
 .head-right {
   display: flex;
   align-items: center;
