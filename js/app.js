@@ -17,7 +17,7 @@ import {
   markDelivered,
   markAttemptedBlocks
 } from './db.js';
-import { reportingDay, dayGaps } from './time.js';
+import { reportingDay, dayGaps, sinceLastBlock } from './time.js';
 import { wakesFrom, latestWake, heldBlockIds, openNight, unreviewedNight, planAutoClose } from './sleep.js';
 import { drawHome, stopTicker } from './ui/home.js';
 import { openEntry } from './ui/entry.js';
@@ -29,7 +29,7 @@ import { addEntry } from './errorlog.js';
 import { staleUnsynced, longTimer } from './safeguards.js';
 
 // Shown at the bottom of Home. Change it together with CACHE_VERSION in sw.js on every release.
-export const APP_VERSION = 'v32';
+export const APP_VERSION = 'v33';
 
 const panels = {
   home: document.getElementById('home'),
@@ -95,12 +95,18 @@ warnEl.addEventListener('click', () => {
   warnEl.hidden = true;
 });
 
-// The header row of each screen is frozen at the top (v32). Once the page has scrolled a few pixels,
-// the page gets the class "scrolled", and the CSS puts a solid background behind the frozen row.
+// The header row of each screen is frozen at the top (v32). The CSS puts a solid background behind it that
+// fades in as you scroll (v33): --head-fade runs from 0 at the top to 1 after HEAD_FADE_PX pixels.
+const HEAD_FADE_PX = 60;
 function markScrolled() {
-  document.documentElement.classList.toggle('scrolled', window.scrollY > 4);
+  const page = document.documentElement;
+  // A screen too short to scroll never shows the solid bar, even if the phone bounces the page.
+  const scrollable = page.scrollHeight - window.innerHeight > 2;
+  const fade = scrollable ? Math.min(1, Math.max(0, window.scrollY / HEAD_FADE_PX)) : 0;
+  page.style.setProperty('--head-fade', fade.toFixed(2));
 }
 window.addEventListener('scroll', markScrolled, { passive: true });
+window.addEventListener('resize', markScrolled);
 markScrolled();
 
 async function loadState(db) {
@@ -128,7 +134,15 @@ async function loadState(db) {
     .sort((a, b) => b.start_epoch - a.start_epoch);
   // The gap banner reads today's blocks plus the running one, which may have started on an earlier day.
   const gapBlocks = running && !dayBlocks.some((b) => b.block_id === running.block_id) ? dayBlocks.concat([running]) : dayBlocks;
-  const gaps = dayGaps({ blocks: gapBlocks, nowEpoch: now, thresholdSec: gapMin * 60, wakeEpoch: latestWake(nights) }).map((g) => ({
+  const wake = latestWake(nights);
+  let rawGaps = dayGaps({ blocks: gapBlocks, nowEpoch: now, thresholdSec: gapMin * 60, wakeEpoch: wake });
+  // No night has ever been logged, nothing is logged today and nothing is running: measure from the end of
+  // the most recent block instead (v33, decision A1). One extra read, and only in this rare case.
+  if (!rawGaps.length && wake === null && !running && !dayBlocks.length && !openNight(nights)) {
+    const last = sinceLastBlock({ blocks: await getAllBlocks(db), nowEpoch: now, thresholdSec: gapMin * 60 });
+    if (last) rawGaps = [last];
+  }
+  const gaps = rawGaps.map((g) => ({
     start: g.start,
     end: g.end,
     toNow: g.end === now
@@ -172,6 +186,7 @@ async function show(name, arg) {
     warn('Something went wrong reading your saved data.');
   }
   window.scrollTo(0, 0);
+  markScrolled();
 }
 
 // "Still going" on the long timer check: saves the answer for this block, so the question waits 6 more hours.

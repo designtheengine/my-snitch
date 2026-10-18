@@ -9,6 +9,7 @@
 //
 // openEntry(ctx, arg): arg is a mode name such as 'start' or 'late', or an object:
 //   {mode: 'late', gap: {start, end, toNow}}       the gap banner opens late mode with a gap filled in
+//   {mode: 'catchup', gap}                          the gap banner after a silence over 14 hours (catchup.js)
 //   {mode: 'end', next: 'stop' or 'switch'}        the End screen
 //   {mode: 'start', ending: {end, lines, changed}} the start form after the End screen, for a switch
 //   {mode: 'edit', blockId, back}                  a saved block from Home or History. back is 'home' or 'history'.
@@ -21,6 +22,7 @@ import { formatClock12 } from '../time.js';
 import { makeShared, makeCategoryPicker, makeLabelField } from './picks.js';
 import { openLate } from './late.js';
 import { openEnd } from './end.js';
+import { openCatchup } from './catchup.js';
 
 export async function openEntry(ctx, arg) {
   const opts = typeof arg === 'string' || !arg ? { mode: arg || 'start' } : arg;
@@ -65,6 +67,10 @@ export async function openEntry(ctx, arg) {
       return;
     }
     openLate(ctx, root, { shared: shared, blocks: blocks, running: running, gap: null, edit: target, back: back });
+    return;
+  }
+  if (opts.mode === 'catchup') {
+    openCatchup(ctx, root, { gap: opts.gap || null });
     return;
   }
   if (opts.mode === 'late') {

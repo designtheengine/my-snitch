@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   localDate, toIso, epochFromLocal, addDays, fallbackDay, reportingDay, nightDay,
-  autoCloseEpoch, findGaps, latestGap, dayGaps, minutesAgo, formatDuration, formatClock12, sinceText
+  autoCloseEpoch, findGaps, latestGap, dayGaps, minutesAgo, formatDuration, formatClock12, sinceText, sinceLastBlock, nightAfter, LONG_GAP_SEC
 } from '../js/time.js';
 
 const IST = 330;
@@ -198,4 +198,27 @@ test('sinceText counts across a month end and uses the given offset for the cale
   assert.equal(sinceText(t(10, 0, 0, '2026-10-30'), t(10, 0, 0, '2026-11-02'), IST), 'Fri 10:00 am (3 days)');
   // A silence that began at 11:30 pm and is read at 12:30 am the next day, one calendar day apart, in India time.
   assert.equal(sinceText(t(23, 30, 0, '2026-10-18'), t(0, 30, 0, '2026-10-19'), IST), 'Sun 11:30 pm (1 day)');
+});
+
+// v33: banner without a logged night (A1) and the catch-up draft (B1)
+test('sinceLastBlock measures from the end of the most recent block, ignoring deleted ones', () => {
+  const blocks = [blk(t(9, 0, 0, '2026-10-17'), t(12, 0, 0, '2026-10-17')), blk(t(13), t(15, 40, 0, '2026-10-17')), { start_epoch: t(8), end_epoch: t(20, 0, 0, '2026-10-18'), is_deleted: true }];
+  assert.deepEqual(sinceLastBlock({ blocks, nowEpoch: t(9, 0, 0, '2026-10-19'), thresholdSec: 300 }), { start: t(15, 40, 0, '2026-10-17'), end: t(9, 0, 0, '2026-10-19') });
+});
+
+test('sinceLastBlock stays quiet with no blocks, a running block, or a silence under the threshold', () => {
+  assert.equal(sinceLastBlock({ blocks: [], nowEpoch: t(9), thresholdSec: 300 }), null);
+  assert.equal(sinceLastBlock({ blocks: [blk(t(8), null)], nowEpoch: t(9), thresholdSec: 300 }), null);
+  assert.equal(sinceLastBlock({ blocks: [blk(t(8), t(9))], nowEpoch: t(9, 5, 0), thresholdSec: 300 }), null);
+  assert.ok(sinceLastBlock({ blocks: [blk(t(8), t(9))], nowEpoch: t(9, 5, 1), thresholdSec: 300 }));
+});
+
+test('nightAfter picks 11:00 pm of the same evening, or the next one when that has passed', () => {
+  const sat = nightAfter(t(15, 40, 0, '2026-10-17'), IST);
+  assert.equal(sat.bed, t(23, 0, 0, '2026-10-17'));
+  assert.equal(sat.wake, t(7, 0, 0, '2026-10-18'));
+  const late = nightAfter(t(23, 30, 0, '2026-10-17'), IST);
+  assert.equal(late.bed, t(23, 0, 0, '2026-10-18'));
+  assert.equal(late.wake, t(7, 0, 0, '2026-10-19'));
+  assert.equal(LONG_GAP_SEC, 50400);
 });

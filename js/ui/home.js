@@ -6,7 +6,7 @@
 
 import { el, clear, catStyle } from './dom.js';
 import { elapsedSeconds, displayMinutes } from '../model.js';
-import { formatDuration, formatClock12, localDate, latestGap, sinceText } from '../time.js';
+import { formatDuration, formatClock12, localDate, latestGap, sinceText, LONG_GAP_SEC } from '../time.js';
 import { truncateForList } from '../labels.js';
 import { categoryByName } from '../categories.js';
 import { sleepTap } from './sleep-view.js';
@@ -89,8 +89,11 @@ function gapBanner(ctx) {
     ? 'Nothing logged since ' + sinceText(gap.start, gap.end, tz)
     : 'Nothing logged from ' + formatClock12(gap.start, tz) + ' to ' + formatClock12(gap.end, tz);
   const others = gaps.length - 1;
-  const sub = others > 0 ? (others === 1 ? '1 earlier gap today' : others + ' earlier gaps today') : 'Tap to fill it in';
-  return el('button', { type: 'button', class: 'banner', onclick: () => ctx.show('entry', { mode: 'late', gap: gap }) }, [
+  // After a silence over 14 hours the tap opens a choice (night or activities), not one huge block (v33).
+  const long = gap.toNow && gap.end - gap.start > LONG_GAP_SEC;
+  const sub = others > 0 ? (others === 1 ? '1 earlier gap today' : others + ' earlier gaps today') : long ? 'Tap to catch up' : 'Tap to fill it in';
+  const open = () => ctx.show('entry', long ? { mode: 'catchup', gap: gap } : { mode: 'late', gap: gap });
+  return el('button', { type: 'button', class: 'banner', onclick: open }, [
     el('div', { class: 'banner-title', text: text }),
     el('div', { class: 'banner-sub', text: sub })
   ]);

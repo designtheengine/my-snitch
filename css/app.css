@@ -863,9 +863,13 @@ h1, h2, p { margin: 0; }
   left: calc(var(--space-4) * -1);
   right: calc(var(--space-4) * -1);
   background: var(--bg);
-  opacity: 0;
+  /* v33: the solid colour follows the scroll distance (--head-fade, 0 to 1, set in js/app.js), so it
+     arrives gradually. A screen that cannot scroll keeps it at 0. */
+  opacity: var(--head-fade, 0);
   pointer-events: none;
-  transition: opacity 0.15s ease;
 }
-.scrolled .panel > .head::before { opacity: 1; }
-.scrolled #home > .head::before { border-bottom: 1px solid var(--border); }
+#home > .head::before { border-bottom: 1px solid var(--border); }
+
+/* The Catch up choice (v33): a short lead, a sentence of help, and two buttons with room between them. */
+#entry .catchup-lead { margin: var(--space-4) 0 var(--space-1); font-weight: 600; }
+#entry .catchup-actions { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-4); }

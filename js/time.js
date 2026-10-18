@@ -118,6 +118,38 @@ export function dayGaps(args) {
   return findGaps({ blocks: live, from: from, to: nowEpoch, thresholdSec: thresholdSec });
 }
 
+// Nothing is logged and no night has ever been logged (v33, decision A1). Home has no wake to measure
+// from, so it measures from the end of the most recent block of any day. blocks is every saved block.
+// A running block means something is being tracked, so there is no gap. With no blocks at all there is
+// nothing to measure from either, so a brand new app stays quiet (D41). Returns {start, end} or null.
+export function sinceLastBlock(args) {
+  const { blocks, nowEpoch, thresholdSec } = args;
+  let last = null;
+  for (const b of blocks) {
+    if (b.is_deleted) continue;
+    if (b.end_epoch === null || b.end_epoch === undefined) return null;
+    if (last === null || b.end_epoch > last) last = b.end_epoch;
+  }
+  if (last === null || nowEpoch - last <= thresholdSec) return null;
+  return { start: last, end: nowEpoch };
+}
+
+// A silence longer than this is treated as "days, not a forgotten stretch" (v33, decision B1): tapping
+// the banner opens a choice instead of filling in one huge block.
+export const LONG_GAP_SEC = 14 * 3600;
+
+// The first night after a moment: bed at 11:00 pm that evening (or the next one if 11:00 pm has already
+// passed by then), wake at 7:00 am. It is only a draft for the sleep screen to start from.
+export function nightAfter(startEpoch, offsetMin) {
+  let date = localDate(startEpoch, offsetMin);
+  let bed = epochFromLocal(date, 23, 0, 0, offsetMin);
+  if (bed < startEpoch) {
+    date = addDays(date, 1);
+    bed = epochFromLocal(date, 23, 0, 0, offsetMin);
+  }
+  return { bed: bed, wake: epochFromLocal(addDays(date, 1), 7, 0, 0, offsetMin) };
+}
+
 // Late logging chips: "started 15 / 30 / 60 minutes ago".
 export function minutesAgo(nowEpoch, minutes) {
   return nowEpoch - minutes * 60;
