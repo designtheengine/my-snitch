@@ -8,6 +8,7 @@ import { el, clear, catStyle } from './dom.js';
 import { elapsedSeconds, displayMinutes } from '../model.js';
 import { formatDuration, formatClock12, localDate, latestGap } from '../time.js';
 import { truncateForList } from '../labels.js';
+import { categoryByName } from '../categories.js';
 import { sleepTap } from './sleep-view.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -35,8 +36,8 @@ function startTicker(ctx) {
 }
 
 function slotFor(ctx, name) {
-  const lower = String(name).toLowerCase();
-  const found = ctx.state.categories.find((c) => c.name.toLowerCase() === lower);
+  // A renamed category is still found by its earlier names, so old blocks keep their colour.
+  const found = categoryByName(ctx.state.categories, name, false);
   return found ? found.color : 9;
 }
 

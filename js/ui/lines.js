@@ -10,6 +10,7 @@
 // opts.onMessage(t):  shows a short message under the form
 
 import { el, binButton } from './dom.js';
+import { categoryByName } from '../categories.js';
 import { moveSlider, addLine, removeLine, maxShare, displayMinutes } from '../model.js';
 import { makeCategoryPicker, makeLabelField } from './picks.js';
 
@@ -97,7 +98,7 @@ export function makeLines(ctx, shared, opts) {
     getLines: () => lines.map((l, i) => ({ category: l.picker.getCategory().name, label: l.label.getValue(), share_pct: shares[i] })),
     // Fills line 1 from a saved line, by category name. An archived or missing category is skipped.
     prefill(categoryName, labelText) {
-      const found = shared.categories.find((c) => !c.archived && c.name.toLowerCase() === String(categoryName).toLowerCase());
+      const found = categoryByName(shared.categories, categoryName, true);
       first.label.setValue(labelText || '');
       if (found) first.picker.setId(found.id);
     },
@@ -111,7 +112,7 @@ export function makeLines(ctx, shared, opts) {
       }
       shares = saved.map((l) => l.share_pct);
       saved.forEach((l, i) => {
-        const found = shared.categories.find((c) => !c.archived && c.name.toLowerCase() === String(l.category).toLowerCase());
+        const found = categoryByName(shared.categories, l.category, true);
         lines[i].label.setValue(l.label || '');
         if (found) lines[i].picker.setId(found.id);
       });

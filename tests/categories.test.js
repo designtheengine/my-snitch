@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextColorSlot, usageCounts, chipOrder } from '../js/categories.js';
+import { nextColorSlot, usageCounts, chipOrder, usedCount, isLocked, categoryByName, checkName, renameChanges, LOCKED_NAMES } from '../js/categories.js';
 
 const cat = (id, name, sort, archived) => ({ id: id, name: name, sort_order: sort, archived: !!archived, color: id });
 
@@ -55,4 +55,57 @@ test('chips: the input list is not changed', () => {
   const cats = [cat(2, 'b', 2), cat(1, 'a', 1)];
   chipOrder(cats, new Map(), 1);
   assert.deepEqual(cats.map((c) => c.name), ['b', 'a']);
+});
+
+// ---- Phase 8: renaming, locked names and lookup by old names
+
+const mk = (id, name, extra = {}) => Object.assign({ id, name, archived: false, sort_order: id, color: id }, extra);
+
+test('sleep and doomscrolling are locked, other names are not', () => {
+  assert.deepEqual(LOCKED_NAMES, ['sleep', 'doomscrolling']);
+  assert.equal(isLocked(mk(1, 'Sleep')), true);
+  assert.equal(isLocked(mk(2, 'doomscrolling')), true);
+  assert.equal(isLocked(mk(3, 'admin')), false);
+});
+
+test('renameChanges keeps the old name in previous_names', () => {
+  const c = mk(3, 'admin');
+  assert.deepEqual(renameChanges(c, ' admin work '), { name: 'admin work', previous_names: ['admin'] });
+  assert.deepEqual(renameChanges(c, 'admin'), {});
+});
+
+test('a second rename keeps both old names, and renaming back drops the name it returns to', () => {
+  const once = Object.assign(mk(3, 'admin work'), { previous_names: ['admin'] });
+  assert.deepEqual(renameChanges(once, 'paperwork'), { name: 'paperwork', previous_names: ['admin', 'admin work'] });
+  // Back to admin: admin is current again, and admin work stays as an earlier name, because blocks were logged under it.
+  assert.deepEqual(renameChanges(once, 'admin'), { name: 'admin', previous_names: ['admin work'] });
+});
+
+test('a change of capitals only adds no previous name', () => {
+  assert.deepEqual(renameChanges(mk(3, 'admin'), 'Admin'), { name: 'Admin', previous_names: [] });
+});
+
+test('checkName refuses empty names and clashes, and allows the category its own name', () => {
+  const list = [mk(1, 'office work'), mk(2, 'admin')];
+  assert.equal(checkName(list, '   ', 2), 'Type a name first.');
+  assert.equal(checkName(list, 'Office Work', 2), 'A category with that name already exists.');
+  assert.equal(checkName(list, 'ADMIN', 2), null);
+  assert.equal(checkName(list, 'a name that is longer than sixty characters is still fine here ok', null), null);
+});
+
+test('categoryByName finds the current name first, then an earlier name, and can skip archived ones', () => {
+  const list = [mk(1, 'admin work', { previous_names: ['admin'] }), mk(2, 'admin', { archived: false }), mk(3, 'old', { archived: true })];
+  assert.equal(categoryByName(list, 'admin').id, 2);
+  assert.equal(categoryByName([list[0]], 'ADMIN').id, 1);
+  assert.equal(categoryByName(list, 'nothing'), null);
+  assert.equal(categoryByName(list, 'old').id, 3);
+  assert.equal(categoryByName(list, 'old', true), null);
+});
+
+test('usedCount adds up the earlier names, and chipOrder uses it', () => {
+  const counts = new Map([['admin', 5], ['admin work', 2], ['social', 6]]);
+  const renamed = mk(1, 'admin work', { previous_names: ['admin'] });
+  assert.equal(usedCount(renamed, counts), 7);
+  const order = chipOrder([mk(2, 'social'), renamed], counts).map((c) => c.id);
+  assert.deepEqual(order, [1, 2]);
 });

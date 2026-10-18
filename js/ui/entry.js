@@ -16,7 +16,7 @@
 import { el, clear } from './dom.js';
 import { getCategories, getAllBlocks, getAllLabels, getAllSleep, getRunningBlock, applySwitch, saveBlock } from '../db.js';
 import { switchBlock, editBlock } from '../model.js';
-import { usageCounts } from '../categories.js';
+import { usageCounts, categoryByName } from '../categories.js';
 import { formatClock12 } from '../time.js';
 import { makeShared, makeCategoryPicker, makeLabelField } from './picks.js';
 import { openLate } from './late.js';
@@ -159,7 +159,7 @@ export async function openEntry(ctx, arg) {
   if (isChange) {
     const first = running.lines[0];
     label.setValue(first.label);
-    const found = shared.categories.find((c) => !c.archived && c.name.toLowerCase() === first.category.toLowerCase());
+    const found = categoryByName(shared.categories, first.category, true);
     if (found) picker.setId(found.id);
   }
   updateStart();
