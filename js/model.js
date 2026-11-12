@@ -2,7 +2,7 @@
 // No DOM, no storage. Functions take a block and return a new one. They never change the input.
 // A block record has the fields in technical spec section 4.1.
 
-import { toIso } from './time.js';
+import { toIso, LONG_GAP_SEC } from './time.js';
 import { MAX_LABEL } from './labels.js';
 
 export const SCHEMA_VERSION = 1;
@@ -315,6 +315,45 @@ export function switchBlock(running, newArgs, nowEpoch, endLines) {
     Object.assign({}, newArgs, { start_epoch: nowEpoch, end_epoch: null, entry_mode: 'timer', now: nowEpoch })
   );
   return { previous: previous, next: next };
+}
+
+// ---------------------------------------------------------------- starting earlier than now (v38, log D108)
+
+// How far back a running block may start. The same 14 hours as the Catch up rule (D97), so a Start cannot make a
+// day-long block by accident. Older stretches go through Missed something or Catch up.
+export const MAX_BACKDATE_SEC = LONG_GAP_SEC;
+
+// Decides whether a running block may start at startEpoch, when nothing is running (log D108).
+// Returns {ok: true} or {ok: false, reason, block}. The reasons:
+//   future:  the start is after now
+//   too_old: the start is more than maxBackSec before now
+//   overlap: the time from the start to now touches a block that is already logged. block is the one that ends
+//            last, so the message can name it. A running block counts as ending now, so a stale screen that
+//            opens while something is already running is refused here too.
+// Deleted blocks never count. A block that ends at the very second the new one starts does not conflict.
+export function checkBackdatedStart(startEpoch, blocks, nowEpoch, maxBackSec) {
+  const limit = maxBackSec === undefined ? MAX_BACKDATE_SEC : maxBackSec;
+  if (startEpoch > nowEpoch) return { ok: false, reason: 'future', block: null };
+  if (nowEpoch - startEpoch > limit) return { ok: false, reason: 'too_old', block: null };
+  const candidate = { block_id: '', start_epoch: startEpoch, end_epoch: null };
+  const found = findOverlaps(candidate, blocks, nowEpoch);
+  if (found.conflicts.length === 0) return { ok: true };
+  let latest = found.conflicts[0].block;
+  for (const c of found.conflicts) {
+    const end = c.block.end_epoch === null ? nowEpoch : c.block.end_epoch;
+    const latestEnd = latest.end_epoch === null ? nowEpoch : latest.end_epoch;
+    if (end > latestEnd) latest = c.block;
+  }
+  return { ok: false, reason: 'overlap', block: latest };
+}
+
+// Builds a running block that began at startEpoch, which may be earlier than now. newArgs: block_id,
+// tz_offset_min, day, lines. The entry mode is "late", so the Sheet can tell it was logged after the fact.
+// The caller checks the start with checkBackdatedStart first, and saves with applySwitch(db, null, block).
+export function startBlockAt(newArgs, startEpoch, nowEpoch) {
+  return createBlock(
+    Object.assign({}, newArgs, { start_epoch: startEpoch, end_epoch: null, entry_mode: 'late', now: nowEpoch })
+  );
 }
 
 // ---------------------------------------------------------------- overlap

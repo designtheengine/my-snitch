@@ -711,9 +711,14 @@ h1, h2, p { margin: 0; }
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   margin-bottom: var(--space-3);
-  overflow: hidden;
+  /* No overflow: hidden here (v38, log I38). It clipped the label suggestion list at the card edge. The rounded
+     corners of the header strip are drawn on the strip itself instead. */
 }
+/* The card that holds the box you are typing in sits above the cards and buttons after it, so the floating label
+   list is never painted underneath the Cancel and Save row. The frozen header is on layer 3, so it stays on top. */
+.sect:focus-within { z-index: 2; }
 .sect-head {
+  border-radius: calc(var(--radius-card) - 1px) calc(var(--radius-card) - 1px) 0 0;
   display: flex;
   align-items: center;
   gap: 10px;

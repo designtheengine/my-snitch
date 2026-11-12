@@ -5,7 +5,7 @@ import {
   displayMinutes, lineMinutes, validateLines, createBlock, editBlock, deleteBlock,
   markSynced, isSyncEligible, outgoingRows, elapsedSeconds, stopBlock, switchBlock,
   findOverlaps, trimOlder, stretchesAround, planLateSave, lastEndedBlock, finishBlock, SCHEMA_VERSION,
-  markAttempted, planEditSave
+  markAttempted, planEditSave, checkBackdatedStart, startBlockAt, MAX_BACKDATE_SEC
 } from '../js/model.js';
 import { epochFromLocal } from '../js/time.js';
 
@@ -776,4 +776,88 @@ test('planEditSave: a block never conflicts with itself', () => {
   const plan = planEditSave(a, { start_epoch: t(9, 15), end_epoch: t(9, 45), lines: one() }, [a], t(18), editOpts());
   assert.equal(plan.refused, null);
   assert.equal(plan.edited.start_epoch, t(9, 15));
+});
+
+// ------------------------------------------------------------ starting earlier than now (v38, log D108)
+
+test('checkBackdatedStart: free time since the last block is allowed', () => {
+  const older = blockAt('old', t(12), t(13, 30));
+  const r = checkBackdatedStart(t(13, 30), [older], t(14));
+  assert.deepEqual(r, { ok: true });
+});
+
+test('checkBackdatedStart: starting at now is allowed', () => {
+  assert.deepEqual(checkBackdatedStart(t(14), [], t(14)), { ok: true });
+});
+
+test('checkBackdatedStart: a start after now is refused as future', () => {
+  const r = checkBackdatedStart(t(14, 0, 1), [], t(14));
+  assert.deepEqual(r, { ok: false, reason: 'future', block: null });
+});
+
+test('checkBackdatedStart: more than 14 hours back is refused, exactly 14 hours is allowed', () => {
+  assert.equal(MAX_BACKDATE_SEC, 14 * 3600);
+  const now = t(20);
+  assert.equal(checkBackdatedStart(now - MAX_BACKDATE_SEC, [], now).ok, true);
+  const r = checkBackdatedStart(now - MAX_BACKDATE_SEC - 1, [], now);
+  assert.deepEqual(r, { ok: false, reason: 'too_old', block: null });
+});
+
+test('checkBackdatedStart: a start inside an older block is refused and names that block', () => {
+  const older = blockAt('old', t(12), t(13, 30));
+  const r = checkBackdatedStart(t(13), [older], t(14));
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'overlap');
+  assert.equal(r.block.block_id, 'old');
+});
+
+test('checkBackdatedStart: an older block that sits wholly between the start and now is refused', () => {
+  const older = blockAt('old', t(12, 30), t(13));
+  const r = checkBackdatedStart(t(12), [older], t(14));
+  assert.equal(r.reason, 'overlap');
+  assert.equal(r.block.block_id, 'old');
+});
+
+test('checkBackdatedStart: touching the end of an older block is not a conflict', () => {
+  const older = blockAt('old', t(12), t(13));
+  assert.equal(checkBackdatedStart(t(13), [older], t(14)).ok, true);
+});
+
+test('checkBackdatedStart: a deleted block never blocks a start', () => {
+  const gone = Object.assign(blockAt('gone', t(12), t(13, 30)), { is_deleted: true });
+  assert.equal(checkBackdatedStart(t(13), [gone], t(14)).ok, true);
+});
+
+test('checkBackdatedStart: with several conflicts, the one that ends last is named', () => {
+  const a = blockAt('a', t(12), t(12, 30));
+  const b = blockAt('b', t(12, 30), t(13, 15));
+  const r = checkBackdatedStart(t(12, 10), [a, b], t(14));
+  assert.equal(r.reason, 'overlap');
+  assert.equal(r.block.block_id, 'b');
+});
+
+test('checkBackdatedStart: a block that is still running counts as ending now, so a stale screen is refused', () => {
+  const running = createBlock({
+    block_id: 'run', start_epoch: t(13), end_epoch: null, tz_offset_min: IST,
+    day: '2026-09-29', lines: one(), entry_mode: 'timer', now: t(13)
+  });
+  const r = checkBackdatedStart(t(13, 30), [running], t(14));
+  assert.equal(r.reason, 'overlap');
+  assert.equal(r.block.block_id, 'run');
+});
+
+test('startBlockAt: makes a running block that began earlier, saved as a late entry', () => {
+  const b = startBlockAt({ block_id: 'n1', tz_offset_min: IST, day: '2026-09-29', lines: one('learning', 'reading') }, t(13, 30), t(14));
+  assert.equal(b.start_epoch, t(13, 30));
+  assert.equal(b.end_epoch, null);
+  assert.equal(b.running, 1);
+  assert.equal(b.entry_mode, 'late');
+  assert.equal(b.logged_at, t(14));
+  assert.equal(b.version, 1);
+  assert.equal(b.dirty, 1);
+  assert.equal(elapsedSeconds(b, t(14)), 30 * 60);
+});
+
+test('startBlockAt: refuses lines that do not add up to 100', () => {
+  assert.throws(() => startBlockAt({ block_id: 'n2', tz_offset_min: IST, day: '2026-09-29', lines: [{ category: 'admin', label: '', share_pct: 60 }] }, t(13), t(14)));
 });

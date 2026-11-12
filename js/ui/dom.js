@@ -52,6 +52,21 @@ export function backButton(onclick) {
   return b;
 }
 
+// Runs a redraw without losing the scroll position (v38, log I38).
+// A screen that empties itself and draws again goes short for a moment, and the browser snaps the page to the
+// top. This holds the panel at its old height while redraw() runs, then puts the scroll position back.
+// redraw may be async. Settings does the same thing in its own `again()` (v23, log I23).
+export async function keepScroll(root, redraw) {
+  const y = window.scrollY;
+  root.style.minHeight = root.offsetHeight + 'px';
+  try {
+    await redraw();
+  } finally {
+    root.style.minHeight = '';
+    window.scrollTo(0, y);
+  }
+}
+
 // A small dustbin icon button. The SVG is a fixed string written here, never user text.
 export function binButton(label, onclick) {
   const b = el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': label, title: label, onclick: onclick });

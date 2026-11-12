@@ -6,6 +6,23 @@ import { getCategories, addCategory } from '../db.js';
 import { MAX_LABEL, normalizeLabel, labelKey, suggest } from '../labels.js';
 import { chipOrder, nextColorSlot } from '../categories.js';
 
+// A tap on blank space should close an open label suggestion list (v38, log I38). The list used to close only when
+// the label box lost focus, and iOS is not expected to take focus away from a box when you tap plain space
+// (unproven on your phone, so this does not rely on it). One listener serves every label box on every screen.
+// It only hides the list. It leaves the keyboard alone, because closing the keyboard in the middle of a tap
+// can move the page and make the tap miss its button.
+if (typeof document !== 'undefined') {
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      for (const box of document.querySelectorAll('.label-field .suggest:not([hidden])')) {
+        if (!box.parentNode.contains(e.target)) box.hidden = true;
+      }
+    },
+    true
+  );
+}
+
 // shared: {categories, counts, labelRecords, pinnedId, pickers: []}
 // One shared object per open form, so a category made in one line shows up in every line.
 export function makeShared(categories, counts, labelRecords) {

@@ -8,7 +8,7 @@
 // openHistory(ctx, root, data): data.fresh is true when Home opened it, so the list starts at the top.
 // Coming back from edit mode keeps however many days were showing.
 
-import { el, clear, backButton } from './dom.js';
+import { el, clear, backButton, keepScroll } from './dom.js';
 import { getAllBlocks } from '../db.js';
 import { formatDuration, localDate, addDays, epochFromLocal } from '../time.js';
 import { newNight, updateNight } from '../sleep.js';
@@ -85,7 +85,9 @@ export async function openHistory(ctx, root, data) {
         class: 'btn btn-wide more-days',
         onclick: () => {
           shown += PAGE_DAYS;
-          openHistory(ctx, root, null);
+          // The list is drawn again from scratch. keepScroll holds the page where it was, so the new days
+          // appear under the button and the page does not snap back to the top (log I38).
+          keepScroll(root, () => openHistory(ctx, root, null));
         }
       }, 'Show ' + more + ' more ' + (more === 1 ? 'day' : 'days'))
     );

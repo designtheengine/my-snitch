@@ -16,10 +16,11 @@
 
 import { el, clear, section, backButton } from './dom.js';
 import { getCategories, getAllBlocks, getAllLabels, getAllSleep, getRunningBlock, applySwitch, saveBlock } from '../db.js';
-import { switchBlock, editBlock } from '../model.js';
+import { switchBlock, editBlock, checkBackdatedStart, startBlockAt, lastEndedBlock, MAX_BACKDATE_SEC } from '../model.js';
 import { usageCounts, categoryByName } from '../categories.js';
-import { formatClock12 } from '../time.js';
+import { formatClock12, localDate, minutesAgo } from '../time.js';
 import { makeShared, makeCategoryPicker, makeLabelField } from './picks.js';
+import { makeTimePicker } from './timepick.js';
 import { openLate } from './late.js';
 import { openEnd } from './end.js';
 import { openCatchup } from './catchup.js';
@@ -95,8 +96,109 @@ export async function openEntry(ctx, arg) {
   const submitText = isChange ? 'Save' : running ? 'Switch' : 'Start';
   const startBtn = el('button', { type: 'button', class: 'btn btn-primary', disabled: true }, submitText);
 
+  // ------------------------------------------------------------ the Started card (v38, log D108)
+  // Only a plain Start has it. A Switch must begin exactly when the old block ends, and Change leaves the start
+  // alone. Pick when the activity really began, and the timer runs from that time. "Now" is the default, and it
+  // takes the same path as before. Any other choice is checked against the blocks you already logged.
+  const showStarted = !isChange && !running && !ending;
+  const last = lastEndedBlock(blocks);
+  let startSpec = { kind: 'now' }; // {kind: 'now'}, {kind: 'ago', min}, {kind: 'since'} or {kind: 'exact'}
+  const startPicker = showStarted ? makeTimePicker(ctx, 'Start', () => drawStarted()) : null;
+  const startedRow = el('div', { class: 'chip-row', role: 'group', 'aria-label': 'Started' });
+  const startedSummary = el('div', { class: 'summary' });
+  const startedNote = el('p', { class: 'muted', hidden: true, text: 'Your last entry ended over 14 hours ago. Use Catch up on Home for that stretch.' });
+  if (startPicker) startPicker.node.hidden = true;
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const clock = (epoch) => formatClock12(epoch, tz);
+  function dayPrefix(epoch, now) {
+    if (localDate(epoch, tz) === localDate(now, tz)) return '';
+    const parts = localDate(epoch, tz).split('-').map(Number);
+    return parts[2] + ' ' + MONTHS[parts[1] - 1] + ', ';
+  }
+  // "office work, credit policy deck" or just "office work".
+  function nameOf(block) {
+    const cats = block.lines.map((l) => l.category).join(' / ');
+    return block.lines[0].label ? cats + ', ' + block.lines[0].label : cats;
+  }
+  function rangeOf(block, now) {
+    return dayPrefix(block.start_epoch, now) + clock(block.start_epoch) + ' to ' + (block.end_epoch === null ? 'now' : clock(block.end_epoch));
+  }
+
+  // 80 minutes reads "1 h 20 min", 12 minutes reads "12 min".
+  function howLong(sec) {
+    const m = Math.round(sec / 60);
+    return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min';
+  }
+
+  function resolveStart(now) {
+    if (startSpec.kind === 'now') return now;
+    if (startSpec.kind === 'ago') return minutesAgo(now, startSpec.min);
+    if (startSpec.kind === 'since') return last ? last.end_epoch : null;
+    return startPicker.getEpoch();
+  }
+
+  // Says what the chosen start means and whether it can be saved. list is the blocks to check against.
+  function describeStart(now, list) {
+    if (startSpec.kind === 'now') return { ok: true, at: now, text: 'Starts now.' };
+    const s = resolveStart(now);
+    if (s === null) return { ok: false, text: 'Choose when it started.' };
+    const check = checkBackdatedStart(s, list, now);
+    if (check.ok) return { ok: true, at: s, text: dayPrefix(s, now) + clock(s) + ' to now · ' + howLong(now - s) };
+    if (check.reason === 'future') return { ok: false, text: 'That start is in the future.' };
+    if (check.reason === 'too_old') return { ok: false, text: 'That is more than 14 hours ago. Use Missed something or Catch up for that stretch.' };
+    return { ok: false, text: 'That start overlaps ' + nameOf(check.block) + ' (' + rangeOf(check.block, now) + '). Pick a start after it ends.' };
+  }
+
+  function sameSpec(a, b) {
+    return a.kind === b.kind && (b.kind !== 'ago' || a.min === b.min);
+  }
+
+  function startedChip(text, spec, disabled) {
+    return el('button', {
+      type: 'button',
+      class: 'chip',
+      'aria-pressed': String(sameSpec(startSpec, spec)),
+      disabled: disabled,
+      onclick: () => chooseStarted(spec)
+    }, text);
+  }
+
+  function chooseStarted(spec) {
+    // Opening the exact wheels starts from whatever the chip meant a moment ago.
+    if (spec.kind === 'exact' && startSpec.kind !== 'exact') {
+      const now = ctx.nowEpoch();
+      const current = resolveStart(now);
+      startPicker.setEpoch(current !== null ? current : now);
+    }
+    startSpec = spec;
+    drawStarted();
+  }
+
+  function drawStarted() {
+    const now = ctx.nowEpoch();
+    const sinceAge = last ? now - last.end_epoch : null;
+    const sinceOk = last !== null && sinceAge >= 0 && sinceAge <= MAX_BACKDATE_SEC;
+    clear(startedRow);
+    startedRow.append(
+      startedChip('Now', { kind: 'now' }, false),
+      startedChip('15 min ago', { kind: 'ago', min: 15 }, false),
+      startedChip('30 min ago', { kind: 'ago', min: 30 }, false),
+      startedChip('1 hour ago', { kind: 'ago', min: 60 }, false),
+      startedChip('Since last entry', { kind: 'since' }, !sinceOk),
+      startedChip('Exact time', { kind: 'exact' }, false)
+    );
+    startPicker.node.hidden = startSpec.kind !== 'exact';
+    startedNote.hidden = !(last !== null && sinceAge > MAX_BACKDATE_SEC);
+    const d = describeStart(now, blocks);
+    startedSummary.textContent = d.text;
+    startedSummary.classList.toggle('summary-bad', !d.ok);
+    updateStart();
+  }
+
   function updateStart() {
-    startBtn.disabled = picker.getId() === null;
+    const startedBad = showStarted && !describeStart(ctx.nowEpoch(), blocks).ok;
+    startBtn.disabled = picker.getId() === null || startedBad;
   }
 
   const picker = makeCategoryPicker(ctx, shared, updateStart);
@@ -135,6 +237,23 @@ export async function openEntry(ctx, arg) {
     if (!chosen) return;
     startBtn.disabled = true;
     try {
+      // A start earlier than now (log D108). The blocks are read again, so a block saved since this screen opened
+      // is still respected, and a block that began running meanwhile is refused as an overlap.
+      if (showStarted && startSpec.kind !== 'now') {
+        const now = ctx.nowEpoch();
+        const d = describeStart(now, await getAllBlocks(ctx.db));
+        if (!d.ok) {
+          startedSummary.textContent = d.text;
+          startedSummary.classList.add('summary-bad');
+          updateStart();
+          return;
+        }
+        const lines = [{ category: chosen.name, label: label.getValue(), share_pct: 100 }];
+        const earlier = startBlockAt({ block_id: ctx.newId(), tz_offset_min: tz, day: ctx.dayFor(d.at), lines: lines }, d.at, now);
+        await applySwitch(ctx.db, null, earlier, { now: now });
+        await ctx.show('home');
+        return;
+      }
       // After the End screen the new block starts at the moment Switch was tapped, so no time falls between them.
       const at = ending ? ending.end : ctx.nowEpoch();
       // Read the running block again, so a stale screen can never leave two running.
@@ -168,7 +287,8 @@ export async function openEntry(ctx, arg) {
     const found = categoryByName(shared.categories, first.category, true);
     if (found) picker.setId(found.id);
   }
-  updateStart();
+  if (showStarted) drawStarted();
+  else updateStart();
 
   root.append(
     el('div', { class: 'head page-head head-back' }, [
@@ -179,6 +299,16 @@ export async function openEntry(ctx, arg) {
     ...(subtitle ? [el('p', { class: 'muted start-note', text: subtitle.textContent })] : []),
     section(1, 'Category', [picker.node]),
     section(2, 'Label', [label.node]),
+    // Left out of the list when there is no card, because append() prints a null as the word "null" (log I4).
+    ...(showStarted
+      ? [section(3, 'Started', [
+          el('p', { class: 'muted', text: 'Forgot to tap Start? Pick when it really began. The timer runs from that time.' }),
+          startedRow,
+          startPicker.node,
+          startedSummary,
+          startedNote
+        ])]
+      : []),
     el('div', { class: 'btn-row' }, [
       el('button', { type: 'button', class: 'btn', onclick: () => ctx.show('home') }, 'Cancel'),
       startBtn

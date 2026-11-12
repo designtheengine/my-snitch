@@ -61,6 +61,16 @@ export function makeLines(ctx, shared, opts) {
     });
   }
 
+  // Holds the page where it is while a line is added or removed (v38, log I38). You reported that the page jumped
+  // up after adding a split. I could not make that happen in a headless browser, so this is a guard and not a
+  // proven cure: it notes the scroll position, makes the change, and sets the position back.
+  function holdScroll(change) {
+    const y = window.scrollY;
+    change();
+    window.scrollTo(0, y);
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  }
+
   function addSplitLine() {
     try {
       shares = addLine(shares);
@@ -68,19 +78,23 @@ export function makeLines(ctx, shared, opts) {
       opts.onMessage('That is as many lines as a block can hold.');
       return;
     }
-    const line = makeLine();
-    lines.push(line);
-    node.append(line.node);
-    opts.onChange();
+    holdScroll(() => {
+      const line = makeLine();
+      lines.push(line);
+      node.append(line.node);
+      opts.onChange();
+    });
   }
 
   function removeAt(index) {
     if (lines.length <= 1 || index < 0) return;
-    shares = removeLine(shares, index);
-    const gone = lines.splice(index, 1)[0];
-    shared.pickers = shared.pickers.filter((p) => p !== gone.picker);
-    gone.node.remove();
-    opts.onChange();
+    holdScroll(() => {
+      shares = removeLine(shares, index);
+      const gone = lines.splice(index, 1)[0];
+      shared.pickers = shared.pickers.filter((p) => p !== gone.picker);
+      gone.node.remove();
+      opts.onChange();
+    });
   }
 
   const first = makeLine();
